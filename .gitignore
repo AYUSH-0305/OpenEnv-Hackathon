@@ -1,0 +1,29 @@
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swaproject
+.DS_Store
+
+# Environment files
+.env
+.env.local
+
+# Python version
+.python-version
