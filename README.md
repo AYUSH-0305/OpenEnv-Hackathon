@@ -1,105 +1,133 @@
-# OpenEnv-Hackathon
+# Medication Reconciliation Environment
 
-An OpenEnv environment implementation for the hackathon, showcasing a client-server architecture for interactive environments.
+> An OpenEnv environment where an AI agent acts as a clinical pharmacist,
+> identifying dangerous discrepancies between a patient's home medications
+> and their hospital discharge prescription.
 
-## Project Structure
+## Why This Matters
 
-```
-OpenEnv-Hackathon/
-├── my_first_env/              # Main package directory
-│   ├── client.py              # Client implementation
-│   ├── models.py              # Data models
-│   ├── openenv.yaml           # Environment configuration
-│   ├── pyproject.toml         # Python project metadata
-│   └── server/                # Server implementation
-│       ├── app.py             # FastAPI application
-│       ├── my_first_env_environment.py  # Environment setup
-│       ├── requirements.txt   # Server dependencies
-│       └── Dockerfile         # Docker containerization
-├── README.md                  # Project documentation
-└── requirements.txt           # Main dependencies
-```
+Medication reconciliation errors cause **~1.5 million patient injuries per year** in the US.
+They most commonly occur during care transitions — when a patient leaves the hospital and
+nobody systematically compares the two medication lists. This environment trains and evaluates
+agents on exactly that task.
 
-## Quick Start
+---
+
+## Environment Description
+
+The agent receives two medication lists:
+- **Home medications** — what the patient was taking before hospitalization
+- **Discharge medications** — what the hospital prescribed on discharge
+
+The agent must identify all discrepancies by issuing flag actions, then call `submit` when done.
+
+---
+
+## Action Space
+
+| Field         | Type   | Description |
+|---------------|--------|-------------|
+| `action_type` | string | One of: `flag_duplicate`, `flag_interaction`, `flag_dose_mismatch`, `flag_missing`, `submit` |
+| `drug_a`      | string | Primary drug name involved |
+| `drug_b`      | string | Secondary drug name (for duplicate/interaction flags) |
+| `reasoning`   | string | Agent's explanation (used for partial credit) |
+
+## Observation Space
+
+| Field                  | Type         | Description |
+|------------------------|--------------|-------------|
+| `task_id`              | string       | Current task identifier |
+| `task_difficulty`      | string       | `easy`, `medium`, or `hard` |
+| `home_medications`     | list[dict]   | Home med list: `{name, dose, frequency}` |
+| `discharge_medications`| list[dict]   | Discharge list: `{name, dose, frequency}` |
+| `flags_submitted`      | list[dict]   | Flags submitted so far this episode |
+| `step_feedback`        | string       | Feedback on the last action |
+| `total_issues`         | int          | Total planted issues (revealed at end) |
+| `issues_found`         | int          | Correct issues found so far |
+| `false_positives`      | int          | Incorrect flags submitted |
+| `done`                 | bool         | Whether the episode is complete |
+| `reward`               | float        | Step reward |
+
+---
+
+## Tasks
+
+### Easy — Exact Duplicate
+One drug appears twice in the discharge list with the same name and dose.
+Expected difficulty: any LLM should catch this.
+Baseline score: ~0.9
+
+### Medium — Brand/Generic Duplicate
+The same drug appears under its brand name on one list and generic name on the other
+(e.g. Zoloft + sertraline). Agent must recognize pharmaceutical equivalence.
+Baseline score: ~0.6
+
+### Hard — Drug Interaction + Dose Mismatch
+Two drugs prescribed by different doctors have a dangerous interaction (serotonin syndrome risk).
+Additionally, a dose was silently doubled. Agent must have pharmacological knowledge.
+Baseline score: ~0.3
+
+---
+
+## Reward Function
+
+| Event | Reward |
+|-------|--------|
+| Correct flag (right drugs + right type) | +0.30 |
+| Partial flag (right drugs, wrong type) | +0.10 |
+| False positive (wrong flag) | -0.15 |
+| Submit bonus | +0.10 |
+
+Rewards are dense — the agent gets signal on every step, not just at the end.
+
+---
+
+## Setup & Usage
 
 ### Prerequisites
-- Python 3.10 or higher
-- pip or uv package manager
-
-### Installation
-
-1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/OpenEnv-Hackathon.git
-cd OpenEnv-Hackathon
+pip install openenv-core
 ```
 
-2. Create and activate a virtual environment:
+### Run locally
 ```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+cd med_reconciliation
+MED_RECON_TASK=easy uvicorn server.app:app --host 0.0.0.0 --port 8000
 ```
 
-3. Install dependencies:
+### Run with Docker
 ```bash
-pip install -r requirements.txt
+docker build -t med-reconciliation-env ./med_reconciliation/server
+docker run -p 8000:8000 -e MED_RECON_TASK=easy med-reconciliation-env
 ```
 
-Or with uv:
+### Run inference
 ```bash
-uv sync
+export API_BASE_URL="https://router.huggingface.co/v1"
+export MODEL_NAME="Qwen/Qwen2.5-72B-Instruct"
+export HF_TOKEN="your_token_here"
+export MED_RECON_TASK="easy"
+
+python inference.py
 ```
 
-### Running the Server
+---
 
-Start the FastAPI server:
+## Baseline Scores
+
+| Task   | Model                    | Score |
+|--------|--------------------------|-------|
+| Easy   | Qwen2.5-72B-Instruct     | ~0.90 |
+| Medium | Qwen2.5-72B-Instruct     | ~0.60 |
+| Hard   | Qwen2.5-72B-Instruct     | ~0.30 |
+
+---
+
+## Validation
+
+Run the pre-submission validator before submitting:
 ```bash
-python -m my_first_env.server.app
+./scripts/validate-submission.sh https://your-space.hf.space
 ```
 
-The server will be available at `http://localhost:8000`
-
-### Running the Client
-
-Use the client to interact with the environment:
-```bash
-python -c "from my_first_env.client import Client; client = Client()"
-```
-
-## Development
-
-### Running Tests
-
-```bash
-pytest my_first_env/
-pytest --cov=my_first_env  # With coverage
-```
-
-### Docker Support
-
-Build and run the environment in Docker:
-```bash
-docker build -t openenv-hackathon .
-docker run -p 8000:8000 openenv-hackathon
-```
-
-## Configuration
-
-The environment is configured via `my_first_env/openenv.yaml`. Modify this file to customize:
-- Environment parameters
-- Server settings
-- Client behavior
-
-## Related Links
-
-- [OpenEnv Documentation](https://github.com/meta-pytorch/OpenEnv)
-- [FastAPI Documentation](https://fastapi.tiangolo.com/)
-- [Project License](LICENSE)
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-This project is licensed under the BSD-style license - see the LICENSE file for details.
+All 3 checks must pass: HF Space live, Docker build, `openenv validate`.

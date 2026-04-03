@@ -1,0 +1,125 @@
+"""
+Deterministic graders for the Medication Reconciliation Environment.
+
+Each grader takes the list of flags submitted by the agent and the
+planted issues for the current task, and returns a score in [0.0, 1.0].
+
+Scoring logic:
+    - Base score = issues_correctly_identified / total_issues
+    - False positive penalty = 0.1 per incorrect flag (min score 0.0)
+    - Partial credit for correct drug pair but wrong action type = 0.3 per issue
+
+All graders are deterministic and reproducible.
+"""
+
+from typing import Any, Dict, List, Tuple
+
+
+def _normalize(name: str, brand_to_generic: Dict[str, str]) -> str:
+    """Lowercase and resolve brand name to generic."""
+    name = name.strip().lower()
+    return brand_to_generic.get(name, name)
+
+
+def _drugs_match(
+    flag_a: str,
+    flag_b: str,
+    issue_a: str,
+    issue_b: str,
+    brand_to_generic: Dict[str, str],
+) -> bool:
+    """Check if the drug pair in a flag matches the planted issue (order-insensitive)."""
+    fa = _normalize(flag_a, brand_to_generic)
+    fb = _normalize(flag_b, brand_to_generic)
+    ia = _normalize(issue_a, brand_to_generic)
+    ib = _normalize(issue_b, brand_to_generic)
+    return (fa == ia and fb == ib) or (fa == ib and fb == ia)
+
+
+def grade_episode(
+    flags: List[Dict[str, Any]],
+    planted_issues: List[Dict[str, Any]],
+    brand_to_generic: Dict[str, str],
+) -> Tuple[float, Dict[str, Any]]:
+    """
+    Grade a completed episode.
+
+    Args:
+        flags: List of flags submitted by the agent. Each flag has:
+               action_type, drug_a, drug_b, reasoning
+        planted_issues: Ground truth issues for the task. Each issue has:
+                        type, drug_a, drug_b, description
+        brand_to_generic: Mapping of brand names to generic names
+
+    Returns:
+        Tuple of (score: float in [0.0, 1.0], details: dict with breakdown)
+    """
+    if not planted_issues:
+        return 1.0, {"reason": "No issues to find — perfect score"}
+
+    total_issues = len(planted_issues)
+    matched_issues = set()  # indices of planted issues that were correctly found
+    false_positives = 0
+    partial_credits = 0
+
+    # Map action_type to issue type
+    action_to_issue_type = {
+        "flag_duplicate": "duplicate",
+        "flag_interaction": "interaction",
+        "flag_dose_mismatch": "dose_mismatch",
+        "flag_missing": "missing",
+    }
+
+    for flag in flags:
+        action_type = flag.get("action_type", "")
+        drug_a = flag.get("drug_a", "")
+        drug_b = flag.get("drug_b", "")
+
+        if action_type == "submit":
+            continue
+
+        expected_issue_type = action_to_issue_type.get(action_type)
+        found_match = False
+
+        for idx, issue in enumerate(planted_issues):
+            if idx in matched_issues:
+                continue
+
+            drugs_ok = _drugs_match(
+                drug_a, drug_b,
+                issue["drug_a"], issue["drug_b"],
+                brand_to_generic,
+            )
+
+            if drugs_ok and expected_issue_type == issue["type"]:
+                # Full credit
+                matched_issues.add(idx)
+                found_match = True
+                break
+            elif drugs_ok and expected_issue_type != issue["type"]:
+                # Correct drug pair, wrong flag type — partial credit
+                matched_issues.add(idx)
+                partial_credits += 1
+                found_match = True
+                break
+
+        if not found_match:
+            false_positives += 1
+
+    full_credits = len(matched_issues) - partial_credits
+    raw_score = (full_credits + partial_credits * 0.3) / total_issues
+    penalty = false_positives * 0.1
+    final_score = max(0.0, min(1.0, raw_score - penalty))
+
+    details = {
+        "total_issues": total_issues,
+        "issues_found": len(matched_issues),
+        "full_credits": full_credits,
+        "partial_credits": partial_credits,
+        "false_positives": false_positives,
+        "raw_score": round(raw_score, 4),
+        "penalty": round(penalty, 4),
+        "final_score": round(final_score, 4),
+    }
+
+    return round(final_score, 4), details
