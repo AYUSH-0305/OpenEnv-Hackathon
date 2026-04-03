@@ -25,3 +25,6 @@ server = "med_reconciliation.server.app:main"
 include-package-data = true
 packages = ["med_reconciliation", "med_reconciliation.server", "med_reconciliation.graders"]
 package-dir = { "med_reconciliation" = ".", "med_reconciliation.server" = "server", "med_reconciliation.graders" = "graders" }
+
+[tool.setuptools.package-data]
+"med_reconciliation" = ["data/*.json", "data/tasks/*.json"]

@@ -85,19 +85,26 @@ def grade_episode(
             if idx in matched_issues:
                 continue
 
-            drugs_ok = _drugs_match(
-                drug_a, drug_b,
-                issue["drug_a"], issue["drug_b"],
-                brand_to_generic,
-            )
+            issue_type = issue["type"]
+            ia = _normalize(issue["drug_a"], brand_to_generic)
+            # For missing issues, drug_b may equal drug_a — normalize carefully
+            ib = _normalize(issue.get("drug_b", ""), brand_to_generic) if issue.get("drug_b") else ia
 
-            if drugs_ok and expected_issue_type == issue["type"]:
-                # Full credit
+            da = _normalize(drug_a, brand_to_generic)
+            # For flag_missing, drug_b may be empty — treat as same as drug_a
+            db = _normalize(drug_b, brand_to_generic) if drug_b else da
+
+            # For missing issues, only drug_a needs to match
+            if issue_type == "missing":
+                drugs_ok = da == ia or da == ib
+            else:
+                drugs_ok = (da == ia and db == ib) or (da == ib and db == ia)
+
+            if drugs_ok and expected_issue_type == issue_type:
                 matched_issues.add(idx)
                 found_match = True
                 break
-            elif drugs_ok and expected_issue_type != issue["type"]:
-                # Correct drug pair, wrong flag type — partial credit
+            elif drugs_ok and expected_issue_type != issue_type:
                 matched_issues.add(idx)
                 partial_credits += 1
                 found_match = True
