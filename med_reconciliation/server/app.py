@@ -33,12 +33,12 @@ except (ImportError, ModuleNotFoundError):
 
 
 # Task is configurable via environment variable — defaults to "easy"
-# Set MED_RECON_TASK=medium or MED_RECON_TASK=hard to change task
-_TASK = os.getenv("MED_RECON_TASK", "easy")
-
-
+# Read dynamically in factory so container restarts pick up changes
 def _env_factory() -> MedReconciliationEnvironment:
-    return MedReconciliationEnvironment(task=_TASK)
+    task = os.getenv("MED_RECON_TASK", "easy").lower()
+    if task not in ("easy", "medium", "hard"):
+        task = "easy"
+    return MedReconciliationEnvironment(task=task)
 
 
 app = create_app(
