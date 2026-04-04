@@ -1,3 +1,10 @@
+""" 
+The uv.lock file acts as a snapshot of the exact versions of every dependency (and sub-dependency).
+Docker Depends On It.
+If uv.lock exists, perform a --frozen install. This prevents unexpected build breaks when you eventually deploy to Hugging Face Spaces.
+"""
+
+
 version = 1
 revision = 3
 requires-python = ">=3.10"
