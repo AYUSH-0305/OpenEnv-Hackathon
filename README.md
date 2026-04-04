@@ -195,7 +195,7 @@ Change `MED_RECON_TASK` to `medium` or `hard` to switch tasks.
 export API_BASE_URL="https://router.huggingface.co/v1"
 export MODEL_NAME="Qwen/Qwen2.5-72B-Instruct"
 export HF_TOKEN="your_token_here"
-export MED_RECON_TASK="easy"
+export MED_RECON_TASK="all"  # easy, medium, hard, or all
 
 python inference.py
 ```

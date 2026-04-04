@@ -30,12 +30,13 @@ IMAGE_NAME = os.getenv("IMAGE_NAME")
 API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
 API_BASE_URL = os.getenv("API_BASE_URL") or "https://router.huggingface.co/v1"
 MODEL_NAME = os.getenv("MODEL_NAME") or "Qwen/Qwen2.5-72B-Instruct"
-TASK_NAME = os.getenv("MED_RECON_TASK", "easy")
+TASK_NAME = os.getenv("MED_RECON_TASK", "all").lower()
 BENCHMARK = "med_reconciliation"
 MAX_STEPS = 10
 TEMPERATURE = 0.2   # low temp for deterministic medical reasoning
 MAX_TOKENS = 300
 SUCCESS_SCORE_THRESHOLD = 0.5
+ALL_TASKS = ["easy", "medium", "hard"]
 
 # Max possible reward per episode (used for score normalization)
 # correct flag = 0.3, up to 2 issues in hard task + submit bonus
@@ -236,7 +237,21 @@ async def run_task(client: OpenAI, task: str) -> tuple[bool, int, float, List[fl
 
 async def main() -> None:
     client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
-    await run_task(client, TASK_NAME)
+    tasks = ALL_TASKS if TASK_NAME == "all" else [TASK_NAME]
+
+    results = []
+    for task in tasks:
+        success, steps, score, rewards = await run_task(client, task)
+        results.append((task, success, steps, score, rewards))
+
+    if len(results) > 1:
+        print("\n[SUMMARY] task results:", flush=True)
+        for task, success, steps, score, rewards in results:
+            rewards_str = ",".join(f"{r:.2f}" for r in rewards)
+            print(
+                f"[SUMMARY] task={task} success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}",
+                flush=True,
+            )
 
 
 if __name__ == "__main__":
