@@ -115,8 +115,11 @@ python inference.py
 
 ## Baseline Scores
 
-| Task | Model | Score |
-|------|-------|-------|
-| Easy | Qwen2.5-72B-Instruct | TBD |
-| Medium | Qwen2.5-72B-Instruct | TBD |
-| Hard | Qwen2.5-72B-Instruct | TBD |
+| Task | Model | Score | Steps |
+|------|-------|-------|-------|
+| Easy | Qwen/Qwen2.5-72B-Instruct | 0.300 | 1 |
+| Medium | Qwen/Qwen2.5-72B-Instruct | 0.300 | 1 |
+| Hard | Qwen/Qwen2.5-72B-Instruct | 0.300 | 1 |
+
+Scores normalized to [0.0, 1.0]. Success threshold is 0.5.
+The hard task has 3 planted issues — a perfect score requires identifying all 3.
