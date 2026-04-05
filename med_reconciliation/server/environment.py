@@ -82,6 +82,7 @@ class MedReconciliationEnvironment(Environment):
         self._task_data: Dict[str, Any] = {}
         self._flags_submitted: List[Dict[str, Any]] = []
         self._issues_found: int = 0
+        self._found_issue_indices: set = set()  # track which planted issues already found
         self._false_positives: int = 0
         self._cumulative_reward: float = 0.0
         self._state = State(episode_id=str(uuid4()), step_count=0)
@@ -105,7 +106,7 @@ class MedReconciliationEnvironment(Environment):
         """
         Check a flag against planted issues.
 
-        For 'flag_missing', drug_b may be empty — only drug_a is checked.
+        Already-found issues are skipped to prevent double-counting.
         Brand names are resolved to generics before comparison.
 
         Returns:
@@ -121,19 +122,23 @@ class MedReconciliationEnvironment(Environment):
         da = self._normalize(action.drug_a)
         db = self._normalize(action.drug_b) if action.drug_b else da
 
-        for issue in self._task_data.get("planted_issues", []):
+        for idx, issue in enumerate(self._task_data.get("planted_issues", [])):
+            if idx in self._found_issue_indices:
+                continue  # already found, skip
+
             ia = self._normalize(issue["drug_a"])
             ib = self._normalize(issue["drug_b"]) if issue.get("drug_b") else ia
 
-            # For missing flags, only drug_a needs to match
             if issue["type"] == "missing":
                 drugs_match = da == ia or da == ib
             else:
                 drugs_match = (da == ia and db == ib) or (da == ib and db == ia)
 
             if drugs_match and expected_type == issue["type"]:
+                self._found_issue_indices.add(idx)
                 return True, False, f"Correct: {issue['description']}"
             elif drugs_match:
+                self._found_issue_indices.add(idx)
                 return False, True, f"Partially correct — right drug(s), wrong issue type. Hint: {issue['description']}"
 
         return False, False, f"Incorrect flag — no matching issue found for '{action.drug_a}' / '{action.drug_b}'"
@@ -143,6 +148,7 @@ class MedReconciliationEnvironment(Environment):
         self._task_data = self._load_task()
         self._flags_submitted = []
         self._issues_found = 0
+        self._found_issue_indices = set()
         self._false_positives = 0
         self._cumulative_reward = 0.0
         self._done = False
