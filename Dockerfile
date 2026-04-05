@@ -20,7 +20,7 @@ RUN pip install --no-cache-dir \
     "pydantic>=2.0.0"
 
 # Set PYTHONPATH so imports resolve correctly
-ENV PYTHONPATH="/app:$PYTHONPATH"
+ENV PYTHONPATH=/app
 ENV MED_RECON_TASK="easy"
 
 EXPOSE 7860
