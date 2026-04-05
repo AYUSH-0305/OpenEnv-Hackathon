@@ -48,13 +48,6 @@ Rewards are given at every step — the agent gets signal on each flag, not just
 | `drug_b` | string | Secondary drug name (for duplicate/interaction flags) |
 | `reasoning` | string | Agent's explanation — used for partial credit scoring |
 
-Action type meanings:
-- `flag_duplicate` — same drug appears twice (exact name or brand/generic equivalent)
-- `flag_interaction` — two drugs together cause a dangerous interaction
-- `flag_dose_mismatch` — same drug has different doses between the two lists
-- `flag_missing` — a home medication is absent from the discharge list
-- `submit` — agent is done, submit all findings for final grading
-
 ---
 
 ## Observation Space
@@ -78,57 +71,16 @@ Action type meanings:
 ## Tasks
 
 ### Easy — Exact Duplicate (1 issue)
-
-Patient on warfarin (blood thinner) has it listed twice in the discharge prescription.
-A double dose of warfarin can cause fatal internal bleeding.
-
-Patient context: 72-year-old male with atrial fibrillation admitted for knee replacement surgery.
-
-Planted issue: `duplicate` — warfarin appears twice in discharge list.
-
-Expected baseline score: ~0.90
-
----
+Patient on warfarin has it listed twice in discharge. Double dosing a blood thinner = fatal bleeding risk.
 
 ### Medium — Brand/Generic Duplicate (1 issue)
-
-Patient takes Ultram (brand name for tramadol) at home for chronic back pain.
-Hospital discharge adds tramadol by generic name — creating a duplicate.
-The patient is also on sertraline (SSRI), making a tramadol double-dose life-threatening
-via serotonin syndrome.
-
-Patient context: 58-year-old female with chronic back pain and depression admitted for lumbar surgery.
-Pain management prescribed tramadol post-operatively without checking the home med list.
-
-Planted issue: `duplicate` — Ultram = tramadol (brand/generic equivalence required).
-
-Expected baseline score: ~0.60
-
----
+Patient takes Ultram (brand) at home, hospital prescribes tramadol (generic) — same drug, double dose.
+Patient is also on sertraline (SSRI), making the duplicate life-threatening via serotonin syndrome.
 
 ### Hard — Three Hidden Issues (3 issues)
-
-Three dangerous discrepancies hidden across a complex medication list, each written by a
-different specialist who didn't cross-check the others.
-
-Patient context: 81-year-old female with atrial fibrillation, heart failure, and diabetes
-admitted for hip fracture repair. Cardiologist, orthopedic surgeon, and hospitalist each
-updated the medication list independently.
-
-Planted issues:
-
-1. **Interaction** — Coumadin (brand name for warfarin) + aspirin prescribed together.
-   Warfarin + aspirin = major bleeding interaction. Agent must recognize Coumadin = warfarin.
-
-2. **Dose mismatch** — Digoxin dose silently doubled from 0.125mg to 0.25mg.
-   Digoxin has an extremely narrow therapeutic index — doubling the dose causes
-   bradycardia, heart block, and potentially fatal arrhythmia.
-
-3. **Missing medication** — Metoprolol (beta-blocker) completely absent from discharge list.
-   Abrupt beta-blocker withdrawal causes rebound tachycardia, hypertension, and can
-   precipitate a myocardial infarction.
-
-Expected baseline score: ~0.30
+1. Coumadin + aspirin interaction (Coumadin = warfarin, major bleeding risk)
+2. Digoxin dose doubled 0.125mg → 0.25mg (narrow therapeutic index, fatal arrhythmia risk)
+3. Metoprolol missing from discharge (abrupt beta-blocker withdrawal = heart attack risk)
 
 ---
 
@@ -136,135 +88,35 @@ Expected baseline score: ~0.30
 
 | Event | Reward |
 |-------|--------|
-| Correct flag (right drugs + right type) | +0.30 |
+| Correct flag | +0.30 |
 | Partial flag (right drugs, wrong type) | +0.10 |
-| False positive (wrong flag) | -0.15 |
-| Submit bonus (completing episode) | +0.10 |
-
-Rewards are dense — the agent receives a signal on every step.
-False positives are penalized to discourage random flagging.
-The submit bonus encourages the agent to complete the episode cleanly.
-
-Maximum steps per episode: 10
+| False positive | -0.15 |
+| Submit bonus | +0.10 |
 
 ---
 
-## Environment API
-
-```python
-from med_reconciliation import MedReconciliationEnv, MedReconciliationAction
-
-# Connect to running server
-async with MedReconciliationEnv(base_url="http://localhost:8000") as env:
-    result = await env.reset()
-    obs = result.observation
-
-    # Agent flags a duplicate
-    result = await env.step(MedReconciliationAction(
-        action_type="flag_duplicate",
-        drug_a="warfarin",
-        drug_b="warfarin",
-        reasoning="Warfarin appears twice in the discharge list"
-    ))
-    print(result.reward)   # 0.3
-    print(result.done)     # False
-
-    # Agent submits
-    result = await env.step(MedReconciliationAction(action_type="submit"))
-    print(result.done)     # True
-```
-
----
-
-## Setup & Usage
-
-### Prerequisites
+## Setup
 
 ```bash
 pip install openenv-core pydantic openai
+docker build -t med-recon-env .
+docker run -p 7860:7860 -e MED_RECON_TASK=easy med-recon-env
 ```
 
-### Run locally (without Docker)
-
-```bash
-cd med_reconciliation
-MED_RECON_TASK=easy uvicorn server.app:app --host 0.0.0.0 --port 8000
-```
-
-### Run with Docker
-
-```bash
-docker build -t med-recon-env ./med_reconciliation/server
-docker run -p 8000:8000 -e MED_RECON_TASK=easy med-recon-env
-```
-
-Change `MED_RECON_TASK` to `medium` or `hard` to switch tasks.
-
-### Run inference
+## Run Inference
 
 ```bash
 export API_BASE_URL="https://router.huggingface.co/v1"
 export MODEL_NAME="Qwen/Qwen2.5-72B-Instruct"
-export HF_TOKEN="your_token_here"
-export MED_RECON_TASK="all"  # easy, medium, hard, or all
-
+export HF_TOKEN="your_token"
+export MED_RECON_TASK="all"
 python inference.py
 ```
-
----
 
 ## Baseline Scores
 
 | Task | Model | Score |
 |------|-------|-------|
-| Easy | Qwen2.5-72B-Instruct | TBD — update after inference run |
-| Medium | Qwen2.5-72B-Instruct | TBD — update after inference run |
-| Hard | Qwen2.5-72B-Instruct | TBD — update after inference run |
-
-> Replace TBD values with actual scores from running `python inference.py` against the live Space.
-
----
-
-## Validation
-
-Run the pre-submission validator before submitting:
-
-```bash
-./scripts/validate-submission.sh https://your-space.hf.space
-```
-
-All 3 checks must pass:
-1. HF Space live — POST `/reset` returns HTTP 200
-2. Docker build succeeds
-3. `openenv validate` passes
-
----
-
-## Project Structure
-
-```
-OpenEnv-Hackathon/
-├── inference.py                      # Mandatory root-level inference script
-├── README.md                         # This file
-├── CONTRIBUTING.md                   # Team contributor guide
-├── requirements.txt
-└── med_reconciliation/
-    ├── __init__.py
-    ├── models.py                     # Pydantic Action + Observation types
-    ├── client.py                     # EnvClient wrapper
-    ├── openenv.yaml                  # OpenEnv spec config
-    ├── pyproject.toml
-    ├── data/
-    │   ├── drug_interactions.json    # Drug interaction DB + brand/generic map
-    │   └── tasks/
-    │       ├── easy.json             # Exact duplicate scenario
-    │       ├── medium.json           # Brand/generic duplicate scenario
-    │       └── hard.json             # 3-issue complex scenario
-    ├── graders/
-    │   └── graders.py                # Deterministic 0.0–1.0 scoring
-    └── server/
-        ├── environment.py            # Core reset/step/state logic
-        ├── app.py                    # FastAPI server
-        ├── Dockerfile
-        └── requirements.txt
-```
+| Easy | Qwen2.5-72B-Instruct | TBD |
+| Medium | Qwen2.5-72B-Instruct | TBD |
+| Hard | Qwen2.5-72B-Instruct | TBD |
