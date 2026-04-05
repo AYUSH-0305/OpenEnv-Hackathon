@@ -59,8 +59,9 @@ def main(host: str = "0.0.0.0", port: int = 8000) -> None:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
+    parser.add_argument("--host", type=str, default="0.0.0.0")
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--task", type=str, default="easy", choices=["easy", "medium", "hard"])
     args = parser.parse_args()
     os.environ["MED_RECON_TASK"] = args.task
-    main(port=args.port)
+    main()
