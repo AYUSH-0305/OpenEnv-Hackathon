@@ -1,3 +1,14 @@
+---
+title: Medication Reconciliation
+emoji: 💊
+colorFrom: blue
+colorTo: green
+sdk: docker
+pinned: false
+tags:
+  - openenv
+---
+
 # Medication Reconciliation — OpenEnv Environment
 
 > An OpenEnv environment where an AI agent acts as a clinical pharmacist,
@@ -206,11 +217,11 @@ python inference.py
 
 | Task | Model | Score |
 |------|-------|-------|
-| Easy | Qwen2.5-72B-Instruct | TBD |
-| Medium | Qwen2.5-72B-Instruct | TBD |
-| Hard | Qwen2.5-72B-Instruct | TBD |
+| Easy | Qwen2.5-72B-Instruct | TBD — update after inference run |
+| Medium | Qwen2.5-72B-Instruct | TBD — update after inference run |
+| Hard | Qwen2.5-72B-Instruct | TBD — update after inference run |
 
-Baseline scores will be updated after inference runs are complete.
+> Replace TBD values with actual scores from running `python inference.py` against the live Space.
 
 ---
 
