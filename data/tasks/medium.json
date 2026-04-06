@@ -1,0 +1,28 @@
+{
+  "task_id": "medium_001",
+  "difficulty": "medium",
+  "description": "Patient takes Ultram (brand name for tramadol) at home for chronic back pain. Hospital discharge adds tramadol by generic name — creating a duplicate. The patient is also on sertraline (an SSRI), making a tramadol double-dose especially dangerous due to serotonin syndrome risk.",
+  "patient_context": "58-year-old female with chronic lower back pain, depression, and hypertension. Admitted for lumbar decompression surgery. Pain management prescribed tramadol post-operatively without checking home med list.",
+  "home_medications": [
+    {"name": "ultram", "dose": "50mg", "frequency": "every 8 hours as needed"},
+    {"name": "sertraline", "dose": "100mg", "frequency": "once daily"},
+    {"name": "amlodipine", "dose": "5mg", "frequency": "once daily"},
+    {"name": "omeprazole", "dose": "20mg", "frequency": "once daily before breakfast"}
+  ],
+  "discharge_medications": [
+    {"name": "tramadol", "dose": "50mg", "frequency": "every 6 hours as needed"},
+    {"name": "ultram", "dose": "50mg", "frequency": "every 8 hours as needed"},
+    {"name": "sertraline", "dose": "100mg", "frequency": "once daily"},
+    {"name": "amlodipine", "dose": "5mg", "frequency": "once daily"},
+    {"name": "omeprazole", "dose": "20mg", "frequency": "once daily before breakfast"}
+  ],
+  "planted_issues": [
+    {
+      "type": "duplicate",
+      "drug_a": "ultram",
+      "drug_b": "tramadol",
+      "description": "Ultram is the brand name for tramadol. Patient would receive double the tramadol dose, and combined with sertraline this creates a serious serotonin syndrome risk."
+    }
+  ],
+  "total_issues": 1
+}

@@ -23,7 +23,8 @@ from typing import Any, Dict, List, Optional
 
 from openai import OpenAI
 
-from med_reconciliation import MedReconciliationAction, MedReconciliationEnv
+from models import MedReconciliationAction
+from client import MedReconciliationEnv
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 IMAGE_NAME = os.getenv("IMAGE_NAME")
