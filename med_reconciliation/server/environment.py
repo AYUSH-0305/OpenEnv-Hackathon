@@ -143,8 +143,17 @@ class MedReconciliationEnvironment(Environment):
 
         return False, False, f"Incorrect flag — no matching issue found for '{action.drug_a}' / '{action.drug_b}'"
 
-    def reset(self) -> MedReconciliationObservation:
-        """Reset the environment and load a fresh task."""
+    def reset(self, seed: int = None, episode_id: str = None) -> MedReconciliationObservation:
+        """
+        Reset the environment and load a fresh task.
+
+        The task can be overridden by passing episode_id as:
+        'easy', 'medium', or 'hard'
+        """
+        # Allow task override via episode_id parameter
+        if episode_id and episode_id in ("easy", "medium", "hard"):
+            self._task_name = episode_id
+
         self._task_data = self._load_task()
         self._flags_submitted = []
         self._issues_found = 0
@@ -225,13 +234,12 @@ class MedReconciliationEnvironment(Environment):
 
         self._cumulative_reward += step_reward
 
-        # Auto-complete if all issues found
+        # Hint the agent to submit when all issues are found
         all_found = self._issues_found >= self._task_data.get("total_issues", 1)
         if all_found:
-            self._done = True
-            feedback += " All issues identified — episode complete!"
+            feedback += " All issues identified — call submit to complete the episode."
 
-        return self._build_obs(feedback, step_reward, done=self._done)
+        return self._build_obs(feedback, step_reward, done=False)
 
     def _build_obs(
         self, feedback: str, reward: float, done: bool = False

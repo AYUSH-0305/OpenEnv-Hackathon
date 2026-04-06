@@ -39,12 +39,12 @@ SUCCESS_SCORE_THRESHOLD = 0.5
 ALL_TASKS = ["easy", "medium", "hard"]
 _MAX_REWARD = 1.0
 
-# Task-specific Space URLs — set these if you have separate HF Spaces per task
-# If not set, falls back to ENV_BASE_URL or localhost:8000
+# Single Space URL for all tasks — task is passed via episode_id on reset
+_base = os.getenv("ENV_BASE_URL", "https://arpann09-med-reconciliation.hf.space")
 TASK_URLS = {
-    "easy":   os.getenv("ENV_BASE_URL_EASY",   os.getenv("ENV_BASE_URL", "http://localhost:8000")),
-    "medium": os.getenv("ENV_BASE_URL_MEDIUM",  os.getenv("ENV_BASE_URL", "http://localhost:8000")),
-    "hard":   os.getenv("ENV_BASE_URL_HARD",    os.getenv("ENV_BASE_URL", "http://localhost:8000")),
+    "easy":   _base,
+    "medium": _base,
+    "hard":   _base,
 }
 
 
@@ -196,7 +196,11 @@ async def run_task(client: OpenAI, task: str) -> tuple[bool, int, float, List[fl
         env = MedReconciliationEnv(base_url=base_url)
 
     try:
-        result = await env.reset()
+        # Pass task name via episode_id so server loads the correct scenario
+        try:
+            result = await env.reset(episode_id=task)
+        except Exception:
+            result = await env.reset()
         obs = result.observation
         last_feedback = obs.step_feedback
 
