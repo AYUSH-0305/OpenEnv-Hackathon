@@ -123,8 +123,9 @@ python inference.py
 | Task | Model | Score | Steps |
 |------|-------|-------|-------|
 | Easy | Qwen/Qwen2.5-72B-Instruct | 0.900 | 2 |
-| Medium | Qwen/Qwen2.5-72B-Instruct | 0.900 | 2 |
-| Hard | Qwen/Qwen2.5-72B-Instruct | 1.000 | 3 |
+| Medium | Qwen/Qwen2.5-72B-Instruct | 0.700 | 3 |
+| Hard | Qwen/Qwen2.5-72B-Instruct | 1.000 | 4 |
 
 Scores normalized to [0.0, 1.0]. Success threshold is 0.5.
-The hard task has 3 planted issues — a perfect score requires identifying all 3.
+Medium score of 0.700 reflects a false positive — the model correctly identified the brand/generic duplicate but also flagged a tramadol+sertraline interaction that, while clinically valid, was not a planted issue in this scenario.
+The hard task now requires catching a warfarin+aspirin interaction (via brand name Coumadin), a digoxin dose doubling, and a missing beta-blocker — all 3 found correctly.
