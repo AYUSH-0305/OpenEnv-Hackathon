@@ -1,0 +1,20 @@
+{
+  "task_id": "control_001",
+  "difficulty": "control",
+  "description": "Perfect reconciliation — home and discharge medications match exactly with no discrepancies. The agent must recognize there are no errors and submit without flagging anything. Tests whether the agent avoids alert fatigue and false positives.",
+  "patient_context": "45-year-old male with well-controlled hypertension and type 2 diabetes. Admitted for elective hernia repair. Straightforward admission, no medication changes required. Discharge medications reviewed and confirmed by attending physician.",
+  "home_medications": [
+    {"name": "metformin", "dose": "500mg", "frequency": "twice daily"},
+    {"name": "lisinopril", "dose": "10mg", "frequency": "once daily"},
+    {"name": "atorvastatin", "dose": "20mg", "frequency": "once daily at bedtime"},
+    {"name": "aspirin", "dose": "81mg", "frequency": "once daily"}
+  ],
+  "discharge_medications": [
+    {"name": "metformin", "dose": "500mg", "frequency": "twice daily"},
+    {"name": "lisinopril", "dose": "10mg", "frequency": "once daily"},
+    {"name": "atorvastatin", "dose": "20mg", "frequency": "once daily at bedtime"},
+    {"name": "aspirin", "dose": "81mg", "frequency": "once daily"}
+  ],
+  "planted_issues": [],
+  "total_issues": 0
+}

@@ -37,7 +37,7 @@ MAX_STEPS = 10
 TEMPERATURE = 0.2
 MAX_TOKENS = 300
 SUCCESS_SCORE_THRESHOLD = 0.5
-ALL_TASKS = ["easy", "medium", "hard"]
+ALL_TASKS = ["easy", "medium", "hard", "control"]
 _MAX_REWARD = 1.0
 
 # Single Space URL for all tasks — task is passed via episode_id on reset
@@ -73,30 +73,35 @@ def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> No
 
 # ── Prompt helpers ─────────────────────────────────────────────────────────────
 SYSTEM_PROMPT = textwrap.dedent("""
-You are a clinical pharmacist performing medication reconciliation.
-You will be given a patient's clinical context, their home medication list, and their hospital discharge prescription.
-Your job is to identify ALL discrepancies between the two lists that could harm the patient.
+You are a senior clinical pharmacist performing medication reconciliation.
+Before taking any action, follow this strict reasoning chain:
 
-Discrepancy types you must check for:
-1. DUPLICATE — same drug appears twice (including brand/generic equivalents)
-   Common brand/generic pairs: Coumadin=warfarin, Ultram=tramadol, Zoloft=sertraline,
-   Lopressor=metoprolol, Lanoxin=digoxin, Lasix=furosemide, Glucophage=metformin
-2. INTERACTION — two drugs together cause a dangerous interaction
-   Key interactions: warfarin+aspirin (bleeding), SSRI+tramadol (serotonin syndrome),
-   digoxin+amiodarone (toxicity), ACE inhibitor+potassium (hyperkalemia)
-3. DOSE_MISMATCH — same drug has different doses between home and discharge lists
-   Pay special attention to narrow therapeutic index drugs: digoxin, warfarin, lithium
-4. MISSING — a home medication is absent from the discharge list without explanation
-   Dangerous omissions: beta-blockers (withdrawal = heart attack), corticosteroids (adrenal crisis)
+STEP 1 — NORMALIZE: Convert all brand names to generic names.
+  Key mappings: Coumadin=warfarin, Ultram=tramadol, Zoloft=sertraline,
+  Lopressor=metoprolol, Lanoxin=digoxin, Lasix=furosemide, Glucophage=metformin,
+  Tylenol=acetaminophen, Advil/Motrin=ibuprofen, Prilosec=omeprazole
+
+STEP 2 — COMPARE LISTS: For each drug in the home list, check the discharge list for:
+  a) Exact duplicates (same drug listed twice)
+  b) Brand/generic duplicates (same drug under different names)
+  c) Dose mismatches (especially dangerous for narrow therapeutic index drugs: digoxin, warfarin, lithium)
+  d) Missing medications (especially dangerous for beta-blockers, corticosteroids)
+
+STEP 3 — CHECK INTERACTIONS: For every pair of drugs in the discharge list:
+  - warfarin/coumadin + aspirin/NSAIDs = major bleeding risk
+  - SSRI (sertraline, fluoxetine) + tramadol = serotonin syndrome
+  - digoxin + amiodarone = digoxin toxicity
+  - ACE inhibitor (lisinopril) + potassium = hyperkalemia
+
+STEP 4 — DECIDE: Only flag TRUE clinical errors. If the lists are identical, submit immediately.
 
 For each discrepancy, respond with a JSON object on a single line:
-{"action_type": "flag_duplicate|flag_interaction|flag_dose_mismatch|flag_missing", "drug_a": "<name>", "drug_b": "<name>", "reasoning": "<brief clinical explanation>"}
+{"action_type": "flag_duplicate|flag_interaction|flag_dose_mismatch|flag_missing", "drug_a": "<generic_name>", "drug_b": "<generic_name>", "reasoning": "<clinical explanation>"}
 
-When you have flagged ALL discrepancies, respond with:
-{"action_type": "submit", "drug_a": "", "drug_b": "", "reasoning": "All discrepancies identified"}
+When done (or if no discrepancies exist), respond with:
+{"action_type": "submit", "drug_a": "", "drug_b": "", "reasoning": "Reconciliation complete"}
 
-Be thorough — check every drug pair for interactions. Use generic names when possible.
-False positives are penalized, but missing a life-threatening interaction is worse.
+False positives are penalized. Only flag what you are clinically certain about.
 """).strip()
 
 

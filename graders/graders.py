@@ -61,6 +61,7 @@ def grade_episode(
     matched_issues = set()  # indices of planted issues that were correctly found
     false_positives = 0
     partial_credits = 0
+    fp_explanations = []  # human-readable false positive explanations
 
     # Map action_type to issue type
     action_to_issue_type = {
@@ -112,11 +113,23 @@ def grade_episode(
 
         if not found_match:
             false_positives += 1
+            # Record what the false positive was for explainability
+            fp_explanations.append(
+                f"False positive: '{action_type}' on {drug_a}/{drug_b} — no matching planted issue"
+            )
 
     full_credits = len(matched_issues) - partial_credits
     raw_score = (full_credits + partial_credits * 0.3) / total_issues
     penalty = false_positives * 0.1
     final_score = max(0.0, min(1.0, raw_score - penalty))
+
+    # Find missed issues for explainability
+    missed_issues = []
+    for idx, issue in enumerate(planted_issues):
+        if idx not in matched_issues:
+            missed_issues.append(
+                f"Missed: {issue['type']} — {issue['description']}"
+            )
 
     details = {
         "total_issues": total_issues,
@@ -127,6 +140,10 @@ def grade_episode(
         "raw_score": round(raw_score, 4),
         "penalty": round(penalty, 4),
         "final_score": round(final_score, 4),
+        "explanations": {
+            "false_positives": fp_explanations,
+            "missed_issues": missed_issues,
+        },
     }
 
     return round(final_score, 4), details

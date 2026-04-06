@@ -33,9 +33,10 @@ _INTERACTIONS_FILE = os.path.join(_DATA_DIR, "drug_interactions.json")
 
 # Task difficulty order
 _TASK_FILES = {
-    "easy": os.path.join(_TASKS_DIR, "easy.json"),
-    "medium": os.path.join(_TASKS_DIR, "medium.json"),
-    "hard": os.path.join(_TASKS_DIR, "hard.json"),
+    "easy":    os.path.join(_TASKS_DIR, "easy.json"),
+    "medium":  os.path.join(_TASKS_DIR, "medium.json"),
+    "hard":    os.path.join(_TASKS_DIR, "hard.json"),
+    "control": os.path.join(_TASKS_DIR, "control.json"),
 }
 
 # Reward constants — severity weighted
@@ -155,7 +156,7 @@ class MedReconciliationEnvironment(Environment):
         'easy', 'medium', or 'hard'
         """
         # Allow task override via episode_id parameter
-        if episode_id and episode_id in ("easy", "medium", "hard"):
+        if episode_id and episode_id in ("easy", "medium", "hard", "control"):
             self._task_name = episode_id
 
         self._task_data = self._load_task()
@@ -209,10 +210,19 @@ class MedReconciliationEnvironment(Environment):
             step_reward = _REWARD_SUBMIT_BONUS + score * 0.5
             self._cumulative_reward += step_reward
             self._done = True
+            # Build explainable feedback
+            explanation_parts = []
+            if details.get("explanations", {}).get("false_positives"):
+                explanation_parts.append(" | ".join(details["explanations"]["false_positives"]))
+            if details.get("explanations", {}).get("missed_issues"):
+                explanation_parts.append(" | ".join(details["explanations"]["missed_issues"]))
+            explanation = (" Feedback: " + " ".join(explanation_parts)) if explanation_parts else ""
+
             feedback = (
                 f"Episode complete. Final score: {score:.3f}. "
                 f"Issues found: {details['issues_found']}/{details['total_issues']}. "
                 f"False positives: {details['false_positives']}."
+                f"{explanation}"
             )
             return self._build_obs(feedback, step_reward, done=True)
 
