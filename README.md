@@ -117,8 +117,8 @@ python inference.py
 
 | Task | Model | Score | Steps |
 |------|-------|-------|-------|
-| Easy | Qwen/Qwen2.5-72B-Instruct | 0.300 | 1 |
-| Medium | Qwen/Qwen2.5-72B-Instruct | 0.300 | 1 |
+| Easy | Qwen/Qwen2.5-72B-Instruct | 0.900 | 2 |
+| Medium | Qwen/Qwen2.5-72B-Instruct | 0.900 | 2 |
 | Hard | Qwen/Qwen2.5-72B-Instruct | 1.000 | 3 |
 
 Scores normalized to [0.0, 1.0]. Success threshold is 0.5.
