@@ -21,7 +21,7 @@ RUN pip install --no-cache-dir \
 
 # Set PYTHONPATH so imports resolve correctly
 ENV PYTHONPATH=/app
-ENV MED_RECON_TASK=medium
+ENV MED_RECON_TASK=hard
 
 EXPOSE 7860
 
