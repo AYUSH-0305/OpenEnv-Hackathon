@@ -120,12 +120,13 @@ python inference.py
 
 ## Baseline Scores
 
-| Task | Model | Score | Steps |
-|------|-------|-------|-------|
-| Easy | Qwen/Qwen2.5-72B-Instruct | 0.900 | 2 |
-| Medium | Qwen/Qwen2.5-72B-Instruct | 0.700 | 3 |
-| Hard | Qwen/Qwen2.5-72B-Instruct | 1.000 | 4 |
+| Task | Model | Score | Steps | Notes |
+|------|-------|-------|-------|-------|
+| Easy | Qwen/Qwen2.5-72B-Instruct | 0.900 | 2 | Finds warfarin duplicate, submits cleanly |
+| Medium | Qwen/Qwen2.5-72B-Instruct | 0.900 | 2 | Finds Ultram/tramadol brand-generic duplicate |
+| Hard | Qwen/Qwen2.5-72B-Instruct | 1.000 | 3 | Finds all 3 issues: digoxin dose, warfarin+aspirin interaction, missing metoprolol |
+| Control | Qwen/Qwen2.5-72B-Instruct | 0.600 | 1 | Correctly submits with zero false positives on perfect patient |
 
 Scores normalized to [0.0, 1.0]. Success threshold is 0.5.
-Medium score of 0.700 reflects a false positive — the model correctly identified the brand/generic duplicate but also flagged a tramadol+sertraline interaction that, while clinically valid, was not a planted issue in this scenario.
-The hard task now requires catching a warfarin+aspirin interaction (via brand name Coumadin), a digoxin dose doubling, and a missing beta-blocker — all 3 found correctly.
+Control task max score is 0.600 (submit bonus only — no issues to find).
+The hard task requires brand-name resolution, interaction knowledge, and withdrawal risk awareness.
