@@ -55,7 +55,24 @@ def grade_episode(
         Tuple of (score: float in [0.0, 1.0], details: dict with breakdown)
     """
     if not planted_issues:
-        return 1.0, {"reason": "No issues to find — perfect score"}
+        # Control task — no issues to find. Penalize any false positives.
+        false_positives = sum(1 for f in flags if f.get("action_type") not in ("submit", ""))
+        penalty = false_positives * 0.1
+        score = max(0.0, 1.0 - penalty)
+        return round(score, 4), {
+            "total_issues": 0,
+            "issues_found": 0,
+            "full_credits": 0,
+            "partial_credits": 0,
+            "false_positives": false_positives,
+            "raw_score": 1.0,
+            "penalty": round(penalty, 4),
+            "final_score": round(score, 4),
+            "explanations": {
+                "false_positives": [f"False positive: flagged {f.get('drug_a')}/{f.get('drug_b')} but this patient has no medication errors" for f in flags if f.get("action_type") not in ("submit", "")],
+                "missed_issues": [],
+            },
+        }
 
     total_issues = len(planted_issues)
     matched_issues = set()  # indices of planted issues that were correctly found
