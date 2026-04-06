@@ -30,17 +30,22 @@ IMAGE_NAME = os.getenv("IMAGE_NAME")
 API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
 API_BASE_URL = os.getenv("API_BASE_URL") or "https://router.huggingface.co/v1"
 MODEL_NAME = os.getenv("MODEL_NAME") or "Qwen/Qwen2.5-72B-Instruct"
-TASK_NAME = os.getenv("MED_RECON_TASK", "all").lower()
+TASK_NAME = os.getenv("MED_RECON_TASK", "easy").lower()
 BENCHMARK = "med_reconciliation"
 MAX_STEPS = 10
-TEMPERATURE = 0.2   # low temp for deterministic medical reasoning
+TEMPERATURE = 0.2
 MAX_TOKENS = 300
 SUCCESS_SCORE_THRESHOLD = 0.5
 ALL_TASKS = ["easy", "medium", "hard"]
-
-# Max possible reward per episode (used for score normalization)
-# correct flag = 0.3, up to 2 issues in hard task + submit bonus
 _MAX_REWARD = 1.0
+
+# Task-specific Space URLs — set these if you have separate HF Spaces per task
+# If not set, falls back to ENV_BASE_URL or localhost:8000
+TASK_URLS = {
+    "easy":   os.getenv("ENV_BASE_URL_EASY",   os.getenv("ENV_BASE_URL", "http://localhost:8000")),
+    "medium": os.getenv("ENV_BASE_URL_MEDIUM",  os.getenv("ENV_BASE_URL", "http://localhost:8000")),
+    "hard":   os.getenv("ENV_BASE_URL_HARD",    os.getenv("ENV_BASE_URL", "http://localhost:8000")),
+}
 
 
 # ── Logging helpers (strict format — do not change) ────────────────────────────
@@ -180,10 +185,15 @@ async def run_task(client: OpenAI, task: str) -> tuple[bool, int, float, List[fl
 
     log_start(task=task, env=BENCHMARK, model=MODEL_NAME)
 
+    # Set task env var so local server factory picks it up
+    os.environ["MED_RECON_TASK"] = task
+
+    base_url = TASK_URLS.get(task, os.getenv("ENV_BASE_URL", "http://localhost:8000"))
+
     if IMAGE_NAME:
         env = await MedReconciliationEnv.from_docker_image(IMAGE_NAME)
     else:
-        env = MedReconciliationEnv(base_url=os.getenv("ENV_BASE_URL", "http://localhost:8000"))
+        env = MedReconciliationEnv(base_url=base_url)
 
     try:
         result = await env.reset()

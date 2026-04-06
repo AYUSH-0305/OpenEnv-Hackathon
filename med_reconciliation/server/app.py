@@ -16,6 +16,7 @@ Usage:
 """
 
 import os
+from urllib.parse import urlparse, parse_qs
 
 try:
     from openenv.core.env_server.http_server import create_app
@@ -32,9 +33,8 @@ except (ImportError, ModuleNotFoundError):
     from server.environment import MedReconciliationEnvironment
 
 
-# Task is configurable via environment variable — defaults to "easy"
-# Read dynamically in factory so container restarts pick up changes
 def _env_factory() -> MedReconciliationEnvironment:
+    """Create environment — task controlled by MED_RECON_TASK env var."""
     task = os.getenv("MED_RECON_TASK", "easy").lower()
     if task not in ("easy", "medium", "hard"):
         task = "easy"
