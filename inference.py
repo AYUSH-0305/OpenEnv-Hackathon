@@ -74,26 +74,34 @@ def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> No
 # ── Prompt helpers ─────────────────────────────────────────────────────────────
 SYSTEM_PROMPT = textwrap.dedent("""
 You are a clinical pharmacist performing medication reconciliation.
-You will be given a patient's home medication list and their hospital discharge prescription.
-Your job is to identify ALL discrepancies between the two lists.
+You will be given a patient's clinical context, their home medication list, and their hospital discharge prescription.
+Your job is to identify ALL discrepancies between the two lists that could harm the patient.
 
 Discrepancy types you must check for:
-1. DUPLICATE — same drug appears twice (including brand/generic equivalents, e.g. Zoloft = sertraline)
-2. INTERACTION — two drugs together cause a dangerous interaction (e.g. serotonin syndrome, bleeding risk)
+1. DUPLICATE — same drug appears twice (including brand/generic equivalents)
+   Common brand/generic pairs: Coumadin=warfarin, Ultram=tramadol, Zoloft=sertraline,
+   Lopressor=metoprolol, Lanoxin=digoxin, Lasix=furosemide, Glucophage=metformin
+2. INTERACTION — two drugs together cause a dangerous interaction
+   Key interactions: warfarin+aspirin (bleeding), SSRI+tramadol (serotonin syndrome),
+   digoxin+amiodarone (toxicity), ACE inhibitor+potassium (hyperkalemia)
 3. DOSE_MISMATCH — same drug has different doses between home and discharge lists
+   Pay special attention to narrow therapeutic index drugs: digoxin, warfarin, lithium
 4. MISSING — a home medication is absent from the discharge list without explanation
+   Dangerous omissions: beta-blockers (withdrawal = heart attack), corticosteroids (adrenal crisis)
 
 For each discrepancy, respond with a JSON object on a single line:
-{"action_type": "flag_duplicate|flag_interaction|flag_dose_mismatch|flag_missing", "drug_a": "<name>", "drug_b": "<name>", "reasoning": "<brief explanation>"}
+{"action_type": "flag_duplicate|flag_interaction|flag_dose_mismatch|flag_missing", "drug_a": "<name>", "drug_b": "<name>", "reasoning": "<brief clinical explanation>"}
 
-When you have flagged all discrepancies, respond with:
+When you have flagged ALL discrepancies, respond with:
 {"action_type": "submit", "drug_a": "", "drug_b": "", "reasoning": "All discrepancies identified"}
 
-Use generic drug names when possible. Be precise — false positives are penalized.
+Be thorough — check every drug pair for interactions. Use generic names when possible.
+False positives are penalized, but missing a life-threatening interaction is worse.
 """).strip()
 
 
 def build_user_prompt(
+    patient_context: str,
     home_meds: List[Dict[str, Any]],
     discharge_meds: List[Dict[str, Any]],
     flags_so_far: List[Dict[str, Any]],
@@ -111,8 +119,9 @@ def build_user_prompt(
         if flags_so_far
         else "  None yet"
     )
+    context_str = f"\nPATIENT CONTEXT: {patient_context}" if patient_context else ""
     return textwrap.dedent(f"""
-Step {step}
+Step {step}{context_str}
 
 HOME MEDICATIONS:
 {home_str}
@@ -125,7 +134,7 @@ FLAGS SUBMITTED SO FAR:
 
 LAST FEEDBACK: {last_feedback}
 
-Identify the next discrepancy or submit if done. Respond with a single JSON object.
+Identify the next discrepancy or submit if all are found. Respond with a single JSON object.
 """).strip()
 
 
@@ -151,13 +160,14 @@ def parse_action(text: str) -> MedReconciliationAction:
 
 def get_model_action(
     client: OpenAI,
+    patient_context: str,
     home_meds: List[Dict[str, Any]],
     discharge_meds: List[Dict[str, Any]],
     flags_so_far: List[Dict[str, Any]],
     last_feedback: str,
     step: int,
 ) -> MedReconciliationAction:
-    user_prompt = build_user_prompt(home_meds, discharge_meds, flags_so_far, last_feedback, step)
+    user_prompt = build_user_prompt(patient_context, home_meds, discharge_meds, flags_so_far, last_feedback, step)
     try:
         completion = client.chat.completions.create(
             model=MODEL_NAME,
@@ -211,6 +221,7 @@ async def run_task(client: OpenAI, task: str) -> tuple[bool, int, float, List[fl
 
             action = get_model_action(
                 client,
+                obs.patient_context if hasattr(obs, 'patient_context') else "",
                 obs.home_medications,
                 obs.discharge_medications,
                 obs.flags_submitted,

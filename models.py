@@ -52,12 +52,16 @@ class MedReconciliationObservation(Observation):
     """
     Observation from the Medication Reconciliation environment.
 
-    The agent sees both medication lists and a running log of its flags.
+    The agent sees both medication lists, patient context, and a running log of its flags.
     """
 
     task_id: str = Field(default="", description="Current task identifier")
     task_difficulty: str = Field(
         default="easy", description="Task difficulty: easy, medium, or hard"
+    )
+    patient_context: str = Field(
+        default="",
+        description="Clinical context about the patient — age, conditions, admission reason",
     )
     home_medications: List[Dict[str, Any]] = Field(
         default_factory=list,
@@ -77,7 +81,7 @@ class MedReconciliationObservation(Observation):
     )
     total_issues: int = Field(
         default=0,
-        description="Total number of issues planted in this scenario (revealed at episode end)",
+        description="Total number of issues planted in this scenario",
     )
     issues_found: int = Field(
         default=0,

@@ -88,10 +88,15 @@ Patient is also on sertraline (SSRI), making the duplicate life-threatening via 
 
 | Event | Reward |
 |-------|--------|
-| Correct flag | +0.30 |
+| Correct flag — life-threatening issue (interaction, dose mismatch) | +0.50 |
+| Correct flag — other issue (duplicate, missing) | +0.30 |
 | Partial flag (right drugs, wrong type) | +0.10 |
-| False positive | -0.15 |
-| Submit bonus | +0.10 |
+| False positive (wrong flag) | -0.15 |
+| Submit bonus (completing episode cleanly) | +0.10 |
+
+Rewards are **severity-weighted** — catching a warfarin+aspirin interaction (which can cause fatal hemorrhage) scores higher than catching a simple duplicate. This creates a meaningful gradient that rewards clinical reasoning, not just pattern matching.
+
+False positives are penalized to discourage random flagging. The submit bonus rewards clean episode completion.
 
 ---
 

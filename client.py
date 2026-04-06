@@ -47,6 +47,7 @@ class MedReconciliationEnv(
         observation = MedReconciliationObservation(
             task_id=obs_data.get("task_id", ""),
             task_difficulty=obs_data.get("task_difficulty", "easy"),
+            patient_context=obs_data.get("patient_context", ""),
             home_medications=obs_data.get("home_medications", []),
             discharge_medications=obs_data.get("discharge_medications", []),
             flags_submitted=obs_data.get("flags_submitted", []),

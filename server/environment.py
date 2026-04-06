@@ -38,12 +38,16 @@ _TASK_FILES = {
     "hard": os.path.join(_TASKS_DIR, "hard.json"),
 }
 
-# Reward constants
-_REWARD_CORRECT_FLAG = 0.3       # correct issue identified
+# Reward constants — severity weighted
+_REWARD_CORRECT_FLAG = 0.3       # correct issue identified (base)
+_REWARD_CORRECT_MAJOR = 0.5      # correct major/life-threatening issue
 _REWARD_PARTIAL_FLAG = 0.1       # correct drug pair, wrong type
 _REWARD_FALSE_POSITIVE = -0.15   # incorrect flag
 _REWARD_SUBMIT_BONUS = 0.1       # bonus for submitting (completing episode)
 _MAX_STEPS = 10                  # max steps before forced submission
+
+# Issues that carry higher reward due to life-threatening severity
+_HIGH_SEVERITY_TYPES = {"interaction", "dose_mismatch"}
 
 
 def _load_json(path: str) -> Dict:
@@ -166,6 +170,7 @@ class MedReconciliationEnvironment(Environment):
         return MedReconciliationObservation(
             task_id=self._task_data["task_id"],
             task_difficulty=self._task_data["difficulty"],
+            patient_context=self._task_data.get("patient_context", ""),
             home_medications=self._task_data["home_medications"],
             discharge_medications=self._task_data["discharge_medications"],
             flags_submitted=[],
@@ -223,7 +228,11 @@ class MedReconciliationEnvironment(Environment):
         is_correct, is_partial, feedback = self._check_flag_against_issues(action)
 
         if is_correct:
-            step_reward = _REWARD_CORRECT_FLAG
+            # Higher reward for life-threatening issues (interactions, dose mismatches)
+            issue_type = self._task_data.get("planted_issues", [])[
+                list(self._found_issue_indices)[-1]
+            ]["type"] if self._found_issue_indices else "duplicate"
+            step_reward = _REWARD_CORRECT_MAJOR if issue_type in _HIGH_SEVERITY_TYPES else _REWARD_CORRECT_FLAG
             self._issues_found += 1
         elif is_partial:
             step_reward = _REWARD_PARTIAL_FLAG
@@ -247,6 +256,7 @@ class MedReconciliationEnvironment(Environment):
         return MedReconciliationObservation(
             task_id=self._task_data.get("task_id", ""),
             task_difficulty=self._task_data.get("difficulty", self._task_name),
+            patient_context=self._task_data.get("patient_context", ""),
             home_medications=self._task_data.get("home_medications", []),
             discharge_medications=self._task_data.get("discharge_medications", []),
             flags_submitted=list(self._flags_submitted),
