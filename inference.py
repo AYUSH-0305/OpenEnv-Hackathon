@@ -134,12 +134,12 @@ HOME MEDICATIONS:
 DISCHARGE MEDICATIONS:
 {discharge_str}
 
-FLAGS SUBMITTED SO FAR:
+FLAGS ALREADY SUBMITTED (do NOT repeat these):
 {flags_str}
 
 LAST FEEDBACK: {last_feedback}
 
-Identify the next discrepancy or submit if all are found. Respond with a single JSON object.
+Identify the NEXT NEW discrepancy not already flagged, or submit if all are found. Respond with a single JSON object.
 """).strip()
 
 

@@ -146,7 +146,7 @@ class MedReconciliationEnvironment(Environment):
                 self._found_issue_indices.add(idx)
                 return False, True, f"Partially correct — right drug(s), wrong issue type. Hint: {issue['description']}"
 
-        return False, False, f"Incorrect flag — no matching issue found for '{action.drug_a}' / '{action.drug_b}'"
+        return False, False, f"Incorrect flag — no matching issue found for '{action.drug_a}' / '{action.drug_b}'. Already found: {list(self._found_issue_indices)}"
 
     def reset(self, seed: int = None, episode_id: str = None) -> MedReconciliationObservation:
         """
@@ -168,6 +168,10 @@ class MedReconciliationEnvironment(Environment):
         self._done = False
         self._state = State(episode_id=str(uuid4()), step_count=0)
 
+        initial_feedback = "Episode started. Review the medication lists and flag discrepancies."
+        if self._task_data.get("total_issues", 0) == 0:
+            initial_feedback = "Episode started. Review the medication lists carefully. If there are no discrepancies, call submit immediately."
+
         return MedReconciliationObservation(
             task_id=self._task_data["task_id"],
             task_difficulty=self._task_data["difficulty"],
@@ -175,7 +179,7 @@ class MedReconciliationEnvironment(Environment):
             home_medications=self._task_data["home_medications"],
             discharge_medications=self._task_data["discharge_medications"],
             flags_submitted=[],
-            step_feedback="Episode started. Review the medication lists and flag discrepancies.",
+            step_feedback=initial_feedback,
             total_issues=self._task_data["total_issues"],
             issues_found=0,
             false_positives=0,
@@ -239,9 +243,12 @@ class MedReconciliationEnvironment(Environment):
 
         if is_correct:
             # Higher reward for life-threatening issues (interactions, dose mismatches)
-            issue_type = self._task_data.get("planted_issues", [])[
-                list(self._found_issue_indices)[-1]
-            ]["type"] if self._found_issue_indices else "duplicate"
+            planted = self._task_data.get("planted_issues", [])
+            if planted and self._found_issue_indices:
+                last_idx = list(self._found_issue_indices)[-1]
+                issue_type = planted[last_idx]["type"] if last_idx < len(planted) else "duplicate"
+            else:
+                issue_type = "duplicate"
             step_reward = _REWARD_CORRECT_MAJOR if issue_type in _HIGH_SEVERITY_TYPES else _REWARD_CORRECT_FLAG
             self._issues_found += 1
         elif is_partial:
@@ -253,10 +260,11 @@ class MedReconciliationEnvironment(Environment):
 
         self._cumulative_reward += step_reward
 
-        # Hint the agent to submit when all issues are found
-        all_found = self._issues_found >= self._task_data.get("total_issues", 1)
-        if all_found:
-            feedback += " All issues identified — call submit to complete the episode."
+        all_found = self._issues_found >= self._task_data.get("total_issues", 0)
+        if all_found and self._task_data.get("total_issues", 0) > 0:
+            feedback += " All issues identified — you MUST call submit now to complete the episode."
+        elif self._task_data.get("total_issues", 0) == 0:
+            feedback += " This patient has no medication errors — call submit immediately."
 
         return self._build_obs(feedback, step_reward, done=False)
 
