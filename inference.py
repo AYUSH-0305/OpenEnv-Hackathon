@@ -30,10 +30,10 @@ if _SCRIPT_DIR not in sys.path:
 from openai import OpenAI
 
 # ── Configuration ──────────────────────────────────────────────────────────────
-IMAGE_NAME = os.getenv("IMAGE_NAME")
-API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
-API_BASE_URL = os.getenv("API_BASE_URL") or "https://router.huggingface.co/v1"
-MODEL_NAME = os.getenv("MODEL_NAME") or "Qwen/Qwen2.5-72B-Instruct"
+LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")  # optional: for from_docker_image()
+API_KEY = os.getenv("HF_TOKEN")
+API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
+MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 TASK_NAME = os.getenv("MED_RECON_TASK", "easy").lower()
 BENCHMARK = "med_reconciliation"
 MAX_STEPS = 10
@@ -140,8 +140,8 @@ async def run_task(client, task):
 
     env = None
     try:
-        if IMAGE_NAME:
-            env = await MedReconciliationEnv.from_docker_image(IMAGE_NAME)
+        if LOCAL_IMAGE_NAME:
+            env = await MedReconciliationEnv.from_docker_image(LOCAL_IMAGE_NAME)
         else:
             env = MedReconciliationEnv(base_url=ENV_BASE_URL)
 
