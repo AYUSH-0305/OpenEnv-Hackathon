@@ -3,11 +3,11 @@ Medication Reconciliation — OpenEnv Inference Script
 =====================================================
 
 MANDATORY ENVIRONMENT VARIABLES:
-    API_BASE_URL        The API endpoint for the LLM
-    MODEL_NAME          The model identifier to use for inference
-    HF_TOKEN            Your Hugging Face / API key
-    IMAGE_NAME          Docker image name (if using from_docker_image)
-    MED_RECON_TASK      Task: easy | medium | hard | control (default: easy)
+    API_BASE_URL    The API endpoint for the LLM
+    MODEL_NAME      The model identifier to use for inference
+    HF_TOKEN        Your Hugging Face / API key
+    IMAGE_NAME      Docker image name (if using from_docker_image)
+    MED_RECON_TASK  Task: easy | medium | hard | control (default: easy)
 
 STDOUT FORMAT:
     [START] task=<task_name> env=<benchmark> model=<model_name>
@@ -22,13 +22,12 @@ import sys
 import textwrap
 from typing import Any, Dict, List, Optional
 
-# Ensure the script's directory is in the path for local imports
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add script directory to path so local modules are found
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPT_DIR)
 
 from openai import OpenAI
-
-from models import MedReconciliationAction
-from client import MedReconciliationEnv
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 IMAGE_NAME = os.getenv("IMAGE_NAME")
@@ -43,7 +42,6 @@ MAX_TOKENS = 400
 SUCCESS_SCORE_THRESHOLD = 0.5
 ALL_TASKS = ["easy", "medium", "hard", "control"]
 _MAX_REWARD = 1.0
-
 ENV_BASE_URL = os.getenv("ENV_BASE_URL", "https://arpann09-med-reconciliation.hf.space")
 
 
@@ -55,18 +53,12 @@ def log_start(task: str, env: str, model: str) -> None:
 def log_step(step: int, action: str, reward: float, done: bool, error: Optional[str]) -> None:
     error_val = error if error else "null"
     done_val = str(done).lower()
-    print(
-        f"[STEP] step={step} action={action} reward={reward:.2f} done={done_val} error={error_val}",
-        flush=True,
-    )
+    print(f"[STEP] step={step} action={action} reward={reward:.2f} done={done_val} error={error_val}", flush=True)
 
 
 def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
     rewards_str = ",".join(f"{r:.2f}" for r in rewards)
-    print(
-        f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}",
-        flush=True,
-    )
+    print(f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}", flush=True)
 
 
 # ── Prompt helpers ─────────────────────────────────────────────────────────────
@@ -76,166 +68,125 @@ Before taking any action, follow this strict reasoning chain:
 
 STEP 1 — NORMALIZE: Convert all brand names to generic names.
   Key mappings: Coumadin=warfarin, Ultram=tramadol, Zoloft=sertraline,
-  Lopressor=metoprolol, Lanoxin=digoxin, Lasix=furosemide, Glucophage=metformin,
-  Tylenol=acetaminophen, Advil/Motrin=ibuprofen, Prilosec=omeprazole
+  Lopressor=metoprolol, Lanoxin=digoxin, Lasix=furosemide, Glucophage=metformin
 
-STEP 2 — COMPARE LISTS: For each drug in the home list, check the discharge list for:
-  a) Exact duplicates (same drug listed twice)
-  b) Brand/generic duplicates (same drug under different names)
-  c) Dose mismatches (especially dangerous for narrow therapeutic index drugs: digoxin, warfarin, lithium)
-  d) Missing medications (especially dangerous for beta-blockers, corticosteroids)
+STEP 2 — COMPARE LISTS: Check for duplicates, dose mismatches, missing meds, interactions.
+  Dangerous interactions: warfarin+aspirin (bleeding), SSRI+tramadol (serotonin syndrome),
+  digoxin+amiodarone (toxicity)
 
-STEP 3 — CHECK INTERACTIONS: For every pair of drugs in the discharge list:
-  - warfarin/coumadin + aspirin/NSAIDs = major bleeding risk
-  - SSRI (sertraline, fluoxetine) + tramadol = serotonin syndrome
-  - digoxin + amiodarone = digoxin toxicity
-  - ACE inhibitor (lisinopril) + potassium = hyperkalemia
+STEP 3 — DECIDE: Only flag TRUE clinical errors. If lists are identical, submit immediately.
 
-STEP 4 — DECIDE: Only flag TRUE clinical errors. If the lists are identical, submit immediately.
+For each discrepancy respond with JSON on one line:
+{"action_type": "flag_duplicate|flag_interaction|flag_dose_mismatch|flag_missing", "drug_a": "<name>", "drug_b": "<name>", "reasoning": "<explanation>"}
 
-For each discrepancy, respond with a JSON object on a single line:
-{"action_type": "flag_duplicate|flag_interaction|flag_dose_mismatch|flag_missing", "drug_a": "<generic_name>", "drug_b": "<generic_name>", "reasoning": "<clinical explanation>"}
-
-When done (or if no discrepancies exist), respond with:
+When done respond with:
 {"action_type": "submit", "drug_a": "", "drug_b": "", "reasoning": "Reconciliation complete"}
-
-False positives are penalized. Only flag what you are clinically certain about.
 """).strip()
 
 
-def build_user_prompt(
-    patient_context: str,
-    home_meds: List[Dict[str, Any]],
-    discharge_meds: List[Dict[str, Any]],
-    flags_so_far: List[Dict[str, Any]],
-    last_feedback: str,
-    step: int,
-) -> str:
+def build_user_prompt(patient_context, home_meds, discharge_meds, flags_so_far, last_feedback, step):
     home_str = "\n".join(f"  - {m['name']} {m['dose']} {m['frequency']}" for m in home_meds)
     discharge_str = "\n".join(f"  - {m['name']} {m['dose']} {m['frequency']}" for m in discharge_meds)
-    flags_str = (
-        "\n".join(f"  - {f['action_type']}: {f['drug_a']} / {f['drug_b']}" for f in flags_so_far)
-        if flags_so_far else "  None yet"
-    )
+    flags_str = "\n".join(f"  - {f['action_type']}: {f['drug_a']} / {f['drug_b']}" for f in flags_so_far) if flags_so_far else "  None yet"
     context_str = f"\nPATIENT CONTEXT: {patient_context}" if patient_context else ""
-    return textwrap.dedent(f"""
-Step {step}{context_str}
-
-HOME MEDICATIONS:
-{home_str}
-
-DISCHARGE MEDICATIONS:
-{discharge_str}
-
-FLAGS ALREADY SUBMITTED (do NOT repeat these):
-{flags_str}
-
-LAST FEEDBACK: {last_feedback}
-
-Identify the NEXT NEW discrepancy not already flagged, or submit if all are found. Respond with a single JSON object.
-""").strip()
+    return f"Step {step}{context_str}\n\nHOME MEDICATIONS:\n{home_str}\n\nDISCHARGE MEDICATIONS:\n{discharge_str}\n\nFLAGS ALREADY SUBMITTED (do NOT repeat):\n{flags_str}\n\nLAST FEEDBACK: {last_feedback}\n\nRespond with a single JSON object."
 
 
-def parse_action(text: str) -> MedReconciliationAction:
+def parse_action_dict(text):
     text = text.strip()
     start = text.find("{")
     end = text.rfind("}") + 1
     if start >= 0 and end > start:
         try:
-            data = json.loads(text[start:end])
-            return MedReconciliationAction(
-                action_type=data.get("action_type", "submit"),
-                drug_a=data.get("drug_a", ""),
-                drug_b=data.get("drug_b", ""),
-                reasoning=data.get("reasoning", ""),
-            )
+            return json.loads(text[start:end])
         except json.JSONDecodeError:
             pass
-    return MedReconciliationAction(action_type="submit", drug_a="", drug_b="", reasoning="parse error")
+    return {"action_type": "submit", "drug_a": "", "drug_b": "", "reasoning": "parse error"}
 
 
-def get_model_action(
-    client: OpenAI,
-    patient_context: str,
-    home_meds: List[Dict[str, Any]],
-    discharge_meds: List[Dict[str, Any]],
-    flags_so_far: List[Dict[str, Any]],
-    last_feedback: str,
-    step: int,
-) -> MedReconciliationAction:
+def get_model_response(client, patient_context, home_meds, discharge_meds, flags_so_far, last_feedback, step):
     user_prompt = build_user_prompt(patient_context, home_meds, discharge_meds, flags_so_far, last_feedback, step)
     try:
         completion = client.chat.completions.create(
             model=MODEL_NAME,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
+            messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user_prompt}],
             temperature=TEMPERATURE,
             max_tokens=MAX_TOKENS,
             stream=False,
         )
-        text = (completion.choices[0].message.content or "").strip()
-        return parse_action(text)
+        return parse_action_dict((completion.choices[0].message.content or "").strip())
     except Exception as exc:
         print(f"[DEBUG] Model request failed: {exc}", flush=True)
-        return MedReconciliationAction(action_type="submit", drug_a="", drug_b="", reasoning="model error")
+        return {"action_type": "submit", "drug_a": "", "drug_b": "", "reasoning": "model error"}
 
 
 # ── Main loop ──────────────────────────────────────────────────────────────────
-async def run_task(client: OpenAI, task: str) -> tuple[bool, int, float, List[float]]:
-    rewards: List[float] = []
+async def run_task(client, task):
+    rewards = []
     steps_taken = 0
     score = 0.0
     success = False
 
     log_start(task=task, env=BENCHMARK, model=MODEL_NAME)
 
-    if IMAGE_NAME:
-        env = await MedReconciliationEnv.from_docker_image(IMAGE_NAME)
-    else:
-        env = MedReconciliationEnv(base_url=ENV_BASE_URL)
-
+    # Import here so import errors don't crash before [START] is emitted
     try:
+        from models import MedReconciliationAction
+        from client import MedReconciliationEnv
+    except ImportError as e:
+        print(f"[DEBUG] Import error: {e}", flush=True)
+        log_end(success=False, steps=0, score=0.0, rewards=[])
+        return False, 0, 0.0, []
+
+    env = None
+    try:
+        if IMAGE_NAME:
+            env = await MedReconciliationEnv.from_docker_image(IMAGE_NAME)
+        else:
+            env = MedReconciliationEnv(base_url=ENV_BASE_URL)
+
         try:
             result = await env.reset(episode_id=task)
         except Exception:
             result = await env.reset()
 
         obs = result.observation
-        last_feedback = obs.step_feedback
+        last_feedback = getattr(obs, 'step_feedback', '')
 
         for step in range(1, MAX_STEPS + 1):
-            if result.done:
+            if getattr(result, 'done', False):
                 break
 
-            try:
-                action = get_model_action(
-                    client,
-                    getattr(obs, 'patient_context', ''),
-                    obs.home_medications,
-                    obs.discharge_medications,
-                    obs.flags_submitted,
-                    last_feedback,
-                    step,
-                )
-            except Exception as exc:
-                print(f"[DEBUG] get_model_action error: {exc}", flush=True)
-                action = MedReconciliationAction(action_type="submit", drug_a="", drug_b="", reasoning="error")
+            data = get_model_response(
+                client,
+                getattr(obs, 'patient_context', ''),
+                getattr(obs, 'home_medications', []),
+                getattr(obs, 'discharge_medications', []),
+                getattr(obs, 'flags_submitted', []),
+                last_feedback,
+                step,
+            )
 
+            action = MedReconciliationAction(
+                action_type=data.get("action_type", "submit"),
+                drug_a=data.get("drug_a", ""),
+                drug_b=data.get("drug_b", ""),
+                reasoning=data.get("reasoning", ""),
+            )
             action_str = f"{action.action_type}({action.drug_a},{action.drug_b})"
             error_str = None
+            reward = 0.0
+            done = False
 
             try:
                 result = await env.step(action)
                 obs = result.observation
                 reward = result.reward or 0.0
                 done = result.done
-                last_feedback = obs.step_feedback
+                last_feedback = getattr(obs, 'step_feedback', '')
             except Exception as exc:
                 print(f"[DEBUG] env.step error: {exc}", flush=True)
-                error_str = str(exc)[:100]
-                reward = 0.0
+                error_str = str(exc)[:80]
                 done = True
 
             rewards.append(reward)
@@ -249,33 +200,33 @@ async def run_task(client: OpenAI, task: str) -> tuple[bool, int, float, List[fl
         score = min(max(total_reward / _MAX_REWARD, 0.0), 1.0)
         success = score >= SUCCESS_SCORE_THRESHOLD
 
+    except Exception as e:
+        print(f"[DEBUG] run_task error: {e}", flush=True)
     finally:
-        try:
-            await env.close()
-        except Exception as e:
-            print(f"[DEBUG] env.close() error: {e}", flush=True)
+        if env is not None:
+            try:
+                await env.close()
+            except Exception:
+                pass
 
     log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
     return success, steps_taken, score, rewards
 
 
-async def main() -> None:
+async def main():
     client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
     tasks = ALL_TASKS if TASK_NAME == "all" else [TASK_NAME]
 
     results = []
     for task in tasks:
-        success, steps, score, rewards = await run_task(client, task)
-        results.append((task, success, steps, score, rewards))
+        result = await run_task(client, task)
+        results.append((task,) + result)
 
     if len(results) > 1:
         print("\n[SUMMARY] task results:", flush=True)
         for task, success, steps, score, rewards in results:
             rewards_str = ",".join(f"{r:.2f}" for r in rewards)
-            print(
-                f"[SUMMARY] task={task} success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}",
-                flush=True,
-            )
+            print(f"[SUMMARY] task={task} success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}", flush=True)
 
 
 if __name__ == "__main__":
@@ -283,5 +234,5 @@ if __name__ == "__main__":
         asyncio.run(main())
     except Exception as e:
         print(f"[DEBUG] Fatal error: {e}", flush=True)
-        # Emit a valid [END] line so the validator doesn't fail on missing output
         print("[END] success=false steps=0 score=0.000 rewards=", flush=True)
+        sys.exit(0)
