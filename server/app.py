@@ -50,6 +50,36 @@ app = create_app(
 )
 
 
+# Add /tasks endpoint so validators can enumerate tasks with graders
+@app.get("/tasks")
+def get_tasks():
+    return {
+        "tasks": [
+            {
+                "id": "easy",
+                "name": "Easy — Exact Duplicate",
+                "description": "Patient on warfarin has it listed twice in discharge. Double dosing a blood thinner = fatal bleeding risk.",
+                "difficulty": "easy",
+                "has_grader": True,
+            },
+            {
+                "id": "medium",
+                "name": "Medium — Brand/Generic Duplicate",
+                "description": "Patient takes Ultram (brand) at home, hospital prescribes tramadol (generic). Same drug, double dose with serotonin syndrome risk.",
+                "difficulty": "medium",
+                "has_grader": True,
+            },
+            {
+                "id": "hard",
+                "name": "Hard — Three Hidden Issues",
+                "description": "Three dangerous issues: Coumadin+aspirin interaction, digoxin dose doubled, metoprolol missing from discharge.",
+                "difficulty": "hard",
+                "has_grader": True,
+            },
+        ]
+    }
+
+
 def main(host: str = "0.0.0.0", port: int = 8000) -> None:
     """Entry point for direct execution."""
     import uvicorn
