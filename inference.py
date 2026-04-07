@@ -43,9 +43,10 @@ _MAX_REWARD = 1.0
 # Single Space URL for all tasks — task is passed via episode_id on reset
 _base = os.getenv("ENV_BASE_URL", "https://arpann09-med-reconciliation.hf.space")
 TASK_URLS = {
-    "easy":   _base,
-    "medium": _base,
-    "hard":   _base,
+    "easy":    _base,
+    "medium":  _base,
+    "hard":    _base,
+    "control": _base,
 }
 
 
@@ -204,14 +205,15 @@ async def run_task(client: OpenAI, task: str) -> tuple[bool, int, float, List[fl
     # Set task env var so local server factory picks it up
     os.environ["MED_RECON_TASK"] = task
 
-    base_url = TASK_URLS.get(task, os.getenv("ENV_BASE_URL", "http://localhost:8000"))
+    base_url = TASK_URLS.get(task, os.getenv("ENV_BASE_URL", "https://arpann09-med-reconciliation.hf.space"))
 
-    if IMAGE_NAME:
-        env = await MedReconciliationEnv.from_docker_image(IMAGE_NAME)
-    else:
-        env = MedReconciliationEnv(base_url=base_url)
-
+    env = None
     try:
+        if IMAGE_NAME:
+            env = await MedReconciliationEnv.from_docker_image(IMAGE_NAME)
+        else:
+            env = MedReconciliationEnv(base_url=base_url)
+
         # Pass task name via episode_id so server loads the correct scenario
         try:
             result = await env.reset(episode_id=task)
@@ -224,19 +226,30 @@ async def run_task(client: OpenAI, task: str) -> tuple[bool, int, float, List[fl
             if result.done:
                 break
 
-            action = get_model_action(
-                client,
-                obs.patient_context if hasattr(obs, 'patient_context') else "",
-                obs.home_medications,
-                obs.discharge_medications,
-                obs.flags_submitted,
-                last_feedback,
-                step,
-            )
+            try:
+                action = get_model_action(
+                    client,
+                    obs.patient_context if hasattr(obs, 'patient_context') else "",
+                    obs.home_medications,
+                    obs.discharge_medications,
+                    obs.flags_submitted,
+                    last_feedback,
+                    step,
+                )
+            except Exception as e:
+                print(f"[DEBUG] get_model_action error: {e}", flush=True)
+                action = MedReconciliationAction(action_type="submit", drug_a="", drug_b="", reasoning="error")
 
             action_str = f"{action.action_type}({action.drug_a},{action.drug_b})"
 
-            result = await env.step(action)
+            try:
+                result = await env.step(action)
+            except Exception as e:
+                print(f"[DEBUG] env.step error: {e}", flush=True)
+                error_str = str(e)
+                log_step(step=step, action=action_str, reward=0.0, done=True, error=error_str)
+                break
+
             obs = result.observation
             reward = result.reward or 0.0
             done = result.done
@@ -256,11 +269,16 @@ async def run_task(client: OpenAI, task: str) -> tuple[bool, int, float, List[fl
         score = min(max(total_reward / _MAX_REWARD, 0.0), 1.0)
         success = score >= SUCCESS_SCORE_THRESHOLD
 
+    except Exception as e:
+        print(f"[DEBUG] run_task error: {e}", flush=True)
+        score = 0.0
+        success = False
     finally:
-        try:
-            await env.close()
-        except Exception as e:
-            print(f"[DEBUG] env.close() error: {e}", flush=True)
+        if env is not None:
+            try:
+                await env.close()
+            except Exception as e:
+                print(f"[DEBUG] env.close() error: {e}", flush=True)
 
     log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
     return success, steps_taken, score, rewards
