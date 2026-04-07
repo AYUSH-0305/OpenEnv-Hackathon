@@ -18,8 +18,12 @@ STDOUT FORMAT:
 import asyncio
 import json
 import os
+import sys
 import textwrap
 from typing import Any, Dict, List, Optional
+
+# Ensure the script's directory is in the path for local imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from openai import OpenAI
 
@@ -275,4 +279,9 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except Exception as e:
+        print(f"[DEBUG] Fatal error: {e}", flush=True)
+        # Emit a valid [END] line so the validator doesn't fail on missing output
+        print("[END] success=false steps=0 score=0.000 rewards=", flush=True)
