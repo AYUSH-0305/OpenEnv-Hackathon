@@ -34,13 +34,13 @@ LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")  # optional: for from_docker_im
 API_KEY = os.getenv("HF_TOKEN")
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
-TASK_NAME = os.getenv("MED_RECON_TASK", "easy").lower()
+TASK_NAME = os.getenv("MED_RECON_TASK", "all").lower()  # default: run all tasks
 BENCHMARK = "med_reconciliation"
 MAX_STEPS = 10
 TEMPERATURE = 0.2
 MAX_TOKENS = 400
 SUCCESS_SCORE_THRESHOLD = 0.5
-ALL_TASKS = ["easy", "medium", "hard", "control"]
+ALL_TASKS = ["easy", "medium", "hard"]  # 3 graded tasks required by validator
 _MAX_REWARD = 1.0
 ENV_BASE_URL = os.getenv("ENV_BASE_URL", "https://arpann09-med-reconciliation.hf.space")
 
