@@ -36,10 +36,14 @@ except (ImportError, ModuleNotFoundError):
 def _env_factory() -> MedReconciliationEnvironment:
     """Create environment — task controlled by MED_RECON_TASK env var."""
     task = os.getenv("MED_RECON_TASK", "easy").lower()
-    if task not in ("easy", "medium", "hard"):
+    if task not in ("easy", "medium", "hard", "control"):
         task = "easy"
     return MedReconciliationEnvironment(task=task)
 
+
+# Override the reset endpoint to support task selection via request body
+from fastapi import Request
+from fastapi.responses import JSONResponse
 
 app = create_app(
     _env_factory,
@@ -61,6 +65,8 @@ def get_tasks():
                 "description": "Patient on warfarin has it listed twice in discharge. Double dosing a blood thinner = fatal bleeding risk.",
                 "difficulty": "easy",
                 "has_grader": True,
+                "max_score": 1.0,
+                "min_score": 0.0,
             },
             {
                 "id": "medium",
@@ -68,6 +74,8 @@ def get_tasks():
                 "description": "Patient takes Ultram (brand) at home, hospital prescribes tramadol (generic). Same drug, double dose with serotonin syndrome risk.",
                 "difficulty": "medium",
                 "has_grader": True,
+                "max_score": 1.0,
+                "min_score": 0.0,
             },
             {
                 "id": "hard",
@@ -75,6 +83,8 @@ def get_tasks():
                 "description": "Three dangerous issues: Coumadin+aspirin interaction, digoxin dose doubled, metoprolol missing from discharge.",
                 "difficulty": "hard",
                 "has_grader": True,
+                "max_score": 1.0,
+                "min_score": 0.0,
             },
         ]
     }

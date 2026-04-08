@@ -10,16 +10,13 @@ tasks:
     name: "Easy — Exact Duplicate"
     description: "Patient on warfarin has it listed twice in discharge. Double dosing a blood thinner = fatal bleeding risk."
     difficulty: easy
-    grader: graders.graders.grade_episode
 
   - id: medium
     name: "Medium — Brand/Generic Duplicate"
     description: "Patient takes Ultram (brand) at home, hospital prescribes tramadol (generic). Same drug, double dose with serotonin syndrome risk."
     difficulty: medium
-    grader: graders.graders.grade_episode
 
   - id: hard
     name: "Hard — Three Hidden Issues"
     description: "Three dangerous issues: Coumadin+aspirin interaction, digoxin dose doubled, metoprolol missing from discharge."
     difficulty: hard
-    grader: graders.graders.grade_episode
