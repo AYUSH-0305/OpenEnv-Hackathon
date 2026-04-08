@@ -280,7 +280,12 @@ async def run_task(client, task):
 
 async def main():
     client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY or "placeholder")
-    tasks = ALL_TASKS if TASK_NAME == "all" else [TASK_NAME]
+    # Always run all 3 graded tasks to satisfy validator requirements
+    # Individual task can still be run by setting MED_RECON_TASK=easy/medium/hard
+    if TASK_NAME in ("easy", "medium", "hard", "control"):
+        tasks = [TASK_NAME]
+    else:
+        tasks = ALL_TASKS  # default: run all 3
 
     results = []
     for task in tasks:
