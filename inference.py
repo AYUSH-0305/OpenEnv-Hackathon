@@ -3,16 +3,16 @@ Medication Reconciliation — OpenEnv Inference Script
 =====================================================
 
 MANDATORY ENVIRONMENT VARIABLES:
-    API_BASE_URL    The API endpoint for the LLM
-    MODEL_NAME      The model identifier to use for inference
-    HF_TOKEN        Your Hugging Face / API key
-    IMAGE_NAME      Docker image name (if using from_docker_image)
-    MED_RECON_TASK  Task: easy | medium | hard | control (default: easy)
+    API_BASE_URL        The API endpoint for the LLM
+    MODEL_NAME          The model identifier to use for inference
+    HF_TOKEN            Your Hugging Face / API key
+    LOCAL_IMAGE_NAME    Docker image name (if using from_docker_image)
+    MED_RECON_TASK      Task: easy | medium | hard (default: runs all 3)
 
-STDOUT FORMAT:
+STDOUT FORMAT (strict — only these 3 line types):
     [START] task=<task_name> env=<benchmark> model=<model_name>
     [STEP]  step=<n> action=<action_str> reward=<0.00> done=<true|false> error=<msg|null>
-    [END]   success=<true|false> steps=<n> score=<0.000> rewards=<r1,r2,...,rn>
+    [END]   success=<true|false> steps=<n> score=<0.00> rewards=<r1,r2,...,rn>
 """
 
 import asyncio
@@ -22,7 +22,6 @@ import sys
 import textwrap
 from typing import Any, Dict, List, Optional
 
-# Add script directory to path so local modules are found
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
@@ -30,22 +29,27 @@ if _SCRIPT_DIR not in sys.path:
 from openai import OpenAI
 
 # ── Configuration ──────────────────────────────────────────────────────────────
-LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")  # optional: for from_docker_image()
-API_KEY = os.getenv("HF_TOKEN")
+LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
+API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
-TASK_NAME = os.getenv("MED_RECON_TASK", "all").lower()  # default: run all tasks
+TASK_NAME = os.getenv("MED_RECON_TASK", "").lower().strip()
 BENCHMARK = "med_reconciliation"
 MAX_STEPS = 10
 TEMPERATURE = 0.2
 MAX_TOKENS = 400
 SUCCESS_SCORE_THRESHOLD = 0.5
-ALL_TASKS = ["easy", "medium", "hard"]  # 3 graded tasks required by validator
+ALL_TASKS = ["easy", "medium", "hard"]
 _MAX_REWARD = 1.0
 ENV_BASE_URL = os.getenv("ENV_BASE_URL", "https://arpann09-med-reconciliation.hf.space")
 
 
-# ── Logging helpers (strict format) ───────────────────────────────────────────
+def _debug(msg: str) -> None:
+    """Write debug info to stderr only — never pollutes stdout."""
+    print(f"[DEBUG] {msg}", file=sys.stderr, flush=True)
+
+
+# ── Strict stdout logging (only these 3 types allowed on stdout) ───────────────
 def log_start(task: str, env: str, model: str) -> None:
     print(f"[START] task={task} env={env} model={model}", flush=True)
 
@@ -58,7 +62,7 @@ def log_step(step: int, action: str, reward: float, done: bool, error: Optional[
 
 def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> None:
     rewards_str = ",".join(f"{r:.2f}" for r in rewards)
-    print(f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}", flush=True)
+    print(f"[END] success={str(success).lower()} steps={steps} score={score:.2f} rewards={rewards_str}", flush=True)
 
 
 # ── Prompt helpers ─────────────────────────────────────────────────────────────
@@ -104,31 +108,9 @@ def parse_action_dict(text):
     return {"action_type": "submit", "drug_a": "", "drug_b": "", "reasoning": "parse error"}
 
 
-def get_model_response(client, patient_context, home_meds, discharge_meds, flags_so_far, last_feedback, step):
-    user_prompt = build_user_prompt(patient_context, home_meds, discharge_meds, flags_so_far, last_feedback, step)
-    try:
-        completion = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user_prompt}],
-            temperature=TEMPERATURE,
-            max_tokens=MAX_TOKENS,
-            stream=False,
-        )
-        return parse_action_dict((completion.choices[0].message.content or "").strip())
-    except Exception as exc:
-        print(f"[DEBUG] Model request failed: {exc}", flush=True)
-        # Fallback: deterministic baseline agent based on medication list analysis
-        return _baseline_agent(home_meds, discharge_meds, flags_so_far)
-
-
 def _baseline_agent(home_meds, discharge_meds, flags_so_far):
-    """
-    Deterministic fallback agent for when LLM is unavailable.
-    Implements basic medication reconciliation rules without an LLM.
-    """
+    """Deterministic fallback when LLM unavailable."""
     already_flagged = {(f.get("drug_a", "").lower(), f.get("drug_b", "").lower()) for f in flags_so_far}
-
-    # Brand to generic mapping
     brand_map = {
         "coumadin": "warfarin", "ultram": "tramadol", "zoloft": "sertraline",
         "lopressor": "metoprolol", "lanoxin": "digoxin", "lasix": "furosemide",
@@ -141,24 +123,21 @@ def _baseline_agent(home_meds, discharge_meds, flags_so_far):
 
     home_generic = {norm(m["name"]): m for m in home_meds}
     discharge_generic = {norm(m["name"]): m for m in discharge_meds}
-
-    # Check for duplicates in discharge
     discharge_names = [norm(m["name"]) for m in discharge_meds]
+
     for name in discharge_names:
         if discharge_names.count(name) > 1:
             key = (name, name)
             if key not in already_flagged:
-                return {"action_type": "flag_duplicate", "drug_a": name, "drug_b": name, "reasoning": f"{name} appears twice in discharge list"}
+                return {"action_type": "flag_duplicate", "drug_a": name, "drug_b": name, "reasoning": f"{name} appears twice"}
 
-    # Check for brand/generic duplicates
-    for d_name in discharge_generic:
-        for h_name in home_generic:
+    for d_name in list(discharge_generic.keys()):
+        for h_name in list(home_generic.keys()):
             if d_name != h_name and norm(d_name) == norm(h_name):
                 key = tuple(sorted([d_name, h_name]))
                 if key not in already_flagged:
-                    return {"action_type": "flag_duplicate", "drug_a": h_name, "drug_b": d_name, "reasoning": f"{h_name} and {d_name} are the same drug"}
+                    return {"action_type": "flag_duplicate", "drug_a": h_name, "drug_b": d_name, "reasoning": "brand/generic duplicate"}
 
-    # Check for dose mismatches
     for name in home_generic:
         if name in discharge_generic:
             h_dose = home_generic[name].get("dose", "")
@@ -166,23 +145,37 @@ def _baseline_agent(home_meds, discharge_meds, flags_so_far):
             if h_dose != d_dose:
                 key = (name, name)
                 if key not in already_flagged:
-                    return {"action_type": "flag_dose_mismatch", "drug_a": name, "drug_b": name, "reasoning": f"{name} dose changed from {h_dose} to {d_dose}"}
+                    return {"action_type": "flag_dose_mismatch", "drug_a": name, "drug_b": name, "reasoning": f"dose changed {h_dose} to {d_dose}"}
 
-    # Check for missing medications
     for name in home_generic:
         if name not in discharge_generic:
             key = (name, "")
             if key not in already_flagged:
-                return {"action_type": "flag_missing", "drug_a": name, "drug_b": "", "reasoning": f"{name} is in home list but missing from discharge"}
+                return {"action_type": "flag_missing", "drug_a": name, "drug_b": "", "reasoning": f"{name} missing from discharge"}
 
-    # Check warfarin+aspirin interaction
-    all_discharge = [norm(m["name"]) for m in discharge_meds]
-    if "warfarin" in all_discharge and "aspirin" in all_discharge:
+    all_d = [norm(m["name"]) for m in discharge_meds]
+    if "warfarin" in all_d and "aspirin" in all_d:
         key = ("warfarin", "aspirin")
         if key not in already_flagged:
-            return {"action_type": "flag_interaction", "drug_a": "warfarin", "drug_b": "aspirin", "reasoning": "warfarin + aspirin = major bleeding risk"}
+            return {"action_type": "flag_interaction", "drug_a": "warfarin", "drug_b": "aspirin", "reasoning": "bleeding risk"}
 
     return {"action_type": "submit", "drug_a": "", "drug_b": "", "reasoning": "Reconciliation complete"}
+
+
+def get_model_response(client, patient_context, home_meds, discharge_meds, flags_so_far, last_feedback, step):
+    user_prompt = build_user_prompt(patient_context, home_meds, discharge_meds, flags_so_far, last_feedback, step)
+    try:
+        completion = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user_prompt}],
+            temperature=TEMPERATURE,
+            max_tokens=MAX_TOKENS,
+            stream=False,
+        )
+        return parse_action_dict((completion.choices[0].message.content or "").strip())
+    except Exception as exc:
+        _debug(f"Model request failed: {exc}")
+        return _baseline_agent(home_meds, discharge_meds, flags_so_far)
 
 
 # ── Main loop ──────────────────────────────────────────────────────────────────
@@ -194,12 +187,11 @@ async def run_task(client, task):
 
     log_start(task=task, env=BENCHMARK, model=MODEL_NAME)
 
-    # Import here so import errors don't crash before [START] is emitted
     try:
         from models import MedReconciliationAction
         from client import MedReconciliationEnv
     except ImportError as e:
-        print(f"[DEBUG] Import error: {e}", flush=True)
+        _debug(f"Import error: {e}")
         log_end(success=False, steps=0, score=0.0, rewards=[])
         return False, 0, 0.0, []
 
@@ -250,7 +242,7 @@ async def run_task(client, task):
                 done = result.done
                 last_feedback = getattr(obs, 'step_feedback', '')
             except Exception as exc:
-                print(f"[DEBUG] env.step error: {exc}", flush=True)
+                _debug(f"env.step error: {exc}")
                 error_str = str(exc)[:80]
                 done = True
 
@@ -266,7 +258,7 @@ async def run_task(client, task):
         success = score >= SUCCESS_SCORE_THRESHOLD
 
     except Exception as e:
-        print(f"[DEBUG] run_task error: {e}", flush=True)
+        _debug(f"run_task error: {e}")
     finally:
         if env is not None:
             try:
@@ -280,29 +272,19 @@ async def run_task(client, task):
 
 async def main():
     client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY or "placeholder")
-    # Always run all 3 graded tasks to satisfy validator requirements
-    # Individual task can still be run by setting MED_RECON_TASK=easy/medium/hard
     if TASK_NAME in ("easy", "medium", "hard", "control"):
         tasks = [TASK_NAME]
     else:
-        tasks = ALL_TASKS  # default: run all 3
+        tasks = ALL_TASKS
 
-    results = []
     for task in tasks:
-        result = await run_task(client, task)
-        results.append((task,) + result)
-
-    if len(results) > 1:
-        print("\n[SUMMARY] task results:", flush=True)
-        for task, success, steps, score, rewards in results:
-            rewards_str = ",".join(f"{r:.2f}" for r in rewards)
-            print(f"[SUMMARY] task={task} success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}", flush=True)
+        await run_task(client, task)
 
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except Exception as e:
-        print(f"[DEBUG] Fatal error: {e}", flush=True)
-        print("[END] success=false steps=0 score=0.000 rewards=", flush=True)
+        _debug(f"Fatal error: {e}")
+        log_end(success=False, steps=0, score=0.0, rewards=[])
         sys.exit(0)
