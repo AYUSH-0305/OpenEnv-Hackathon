@@ -20,8 +20,8 @@ fi
 
 echo "[VALIDATION] /reset endpoint returned HTTP 200"
 
-echo "[VALIDATION] Building Docker image '$IMAGE_TAG' from med_reconciliation/server"
-docker build -t "$IMAGE_TAG" ./med_reconciliation/server
+echo "[VALIDATION] Building Docker image '$IMAGE_TAG' from ./server"
+docker build -t "$IMAGE_TAG" ./server
 
 echo "[VALIDATION] Docker build succeeded"
 
@@ -30,8 +30,8 @@ if ! command -v openenv >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "[VALIDATION] Running openenv validate on med_reconciliation/openenv.yaml"
-openenv validate med_reconciliation/openenv.yaml
+echo "[VALIDATION] Running openenv validate on openenv.yaml"
+openenv validate openenv.yaml
 
 echo "[VALIDATION] openenv validate passed"
 
