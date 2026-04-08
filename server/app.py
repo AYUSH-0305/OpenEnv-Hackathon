@@ -17,7 +17,6 @@ Usage:
 
 import os
 from urllib.parse import urlparse, parse_qs
-import graders.graders  # Ensure graders are registered before app creation
 
 try:
     from openenv.core.env_server.http_server import create_app

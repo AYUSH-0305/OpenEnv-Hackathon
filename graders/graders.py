@@ -12,7 +12,6 @@ Scoring logic:
 All graders are deterministic and reproducible.
 """
 from typing import Any, Dict, List, Tuple
-from openenv.core.env_server import grader
 
 def _normalize(name: str, brand_to_generic: Dict[str, str]) -> str:
     """Lowercase and resolve brand name to generic."""
@@ -33,10 +32,6 @@ def _drugs_match(
     ia = _normalize(issue_a, brand_to_generic)
     ib = _normalize(issue_b, brand_to_generic)
     return (fa == ia and fb == ib) or (fa == ib and fb == ia)
-
-@grader("easy")
-@grader("medium")
-@grader("hard")
 
 def grade_episode(
     flags: List[Dict[str, Any]],
