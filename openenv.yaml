@@ -7,13 +7,19 @@ port: 7860
 
 tasks:
   - id: "easy"
-    description: "Patient on warfarin has it listed twice in discharge. Agent must identify the duplicate medication before it causes fatal bleeding."
-    grader: "graders.graders.grade_episode"
+    grader: "graders.task_graders:EasyGrader"
+    name: "Easy — Exact Duplicate"
+    description: "Patient on warfarin has it listed twice in the discharge prescription. Agent must identify the duplicate before it causes fatal internal bleeding."
+    difficulty: "easy"
 
   - id: "medium"
-    description: "Patient takes Ultram (brand) at home, hospital prescribes tramadol (generic). Agent must recognize brand/generic equivalence to catch the dangerous duplicate."
-    grader: "graders.graders.grade_episode"
+    grader: "graders.task_graders:MediumGrader"
+    name: "Medium — Brand/Generic Duplicate"
+    description: "Patient takes Ultram (brand name for tramadol) at home. Hospital prescribes tramadol by generic name. Agent must recognize brand/generic equivalence."
+    difficulty: "medium"
 
   - id: "hard"
-    description: "Three hidden issues: Coumadin+aspirin interaction, digoxin dose doubled, metoprolol missing. Agent must identify all three life-threatening discrepancies."
-    grader: "graders.graders.grade_episode"
+    grader: "graders.task_graders:HardGrader"
+    name: "Hard — Three Hidden Issues"
+    description: "Three life-threatening issues: Coumadin+aspirin interaction, digoxin dose doubled, metoprolol missing from discharge. Agent must find all three."
+    difficulty: "hard"
