@@ -55,7 +55,7 @@ def grade_episode(
         # Control task — no issues to find. Penalize any false positives.
         false_positives = sum(1 for f in flags if f.get("action_type") not in ("submit", ""))
         penalty = false_positives * 0.1
-        score = max(0.0, 1.0 - penalty)
+        score = max(0.01, min(0.99, 1.0 - penalty))
         return round(score, 4), {
             "total_issues": 0,
             "issues_found": 0,
@@ -135,7 +135,7 @@ def grade_episode(
     full_credits = len(matched_issues) - partial_credits
     raw_score = (full_credits + partial_credits * 0.3) / total_issues
     penalty = false_positives * 0.1
-    final_score = max(0.0, min(1.0, raw_score - penalty))
+    final_score = max(0.01, min(0.99, raw_score - penalty))
 
     # Find missed issues for explainability
     missed_issues = []

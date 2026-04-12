@@ -6,20 +6,14 @@ app: server.app:app
 port: 7860
 
 tasks:
-  - id: easy
-    name: "Easy — Exact Duplicate"
-    description: "Patient on warfarin has it listed twice in discharge. Double dosing a blood thinner = fatal bleeding risk."
-    difficulty: easy
-    grader: true
+  - id: "easy"
+    description: "Patient on warfarin has it listed twice in discharge. Agent must identify the duplicate medication before it causes fatal bleeding."
+    grader: "graders.graders.grade_episode"
 
-  - id: medium
-    name: "Medium — Brand/Generic Duplicate"
-    description: "Patient takes Ultram (brand) at home, hospital prescribes tramadol (generic). Same drug, double dose with serotonin syndrome risk."
-    difficulty: medium
-    grader: true
+  - id: "medium"
+    description: "Patient takes Ultram (brand) at home, hospital prescribes tramadol (generic). Agent must recognize brand/generic equivalence to catch the dangerous duplicate."
+    grader: "graders.graders.grade_episode"
 
-  - id: hard
-    name: "Hard — Three Hidden Issues"
-    description: "Three dangerous issues: Coumadin+aspirin interaction, digoxin dose doubled, metoprolol missing from discharge."
-    difficulty: hard
-    grader: true
+  - id: "hard"
+    description: "Three hidden issues: Coumadin+aspirin interaction, digoxin dose doubled, metoprolol missing. Agent must identify all three life-threatening discrepancies."
+    grader: "graders.graders.grade_episode"
