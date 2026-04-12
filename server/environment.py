@@ -18,6 +18,7 @@ from uuid import uuid4
 
 from openenv.core.env_server.interfaces import Environment
 from openenv.core.env_server.types import State
+from openenv.core.rubrics.base import Rubric
 
 try:
     from ..graders.graders import grade_episode
@@ -25,6 +26,24 @@ try:
 except ImportError:
     from graders.graders import grade_episode
     from models import MedReconciliationAction, MedReconciliationObservation
+
+
+class MedReconciliationRubric(Rubric):
+    """
+    Rubric for the Medication Reconciliation environment.
+    Scores agent performance on identifying medication discrepancies.
+    Returns a score in [0.0, 1.0].
+    """
+
+    def forward(self, action: Any, observation: Any) -> float:
+        """Score based on issues found vs false positives."""
+        if not hasattr(observation, 'issues_found'):
+            return 0.0
+        total = getattr(observation, 'total_issues', 1) or 1
+        found = getattr(observation, 'issues_found', 0)
+        fps = getattr(observation, 'false_positives', 0)
+        score = max(0.0, min(1.0, (found / total) - fps * 0.1))
+        return score
 
 # Paths to data files
 _DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
@@ -92,6 +111,9 @@ class MedReconciliationEnvironment(Environment):
         self._cumulative_reward: float = 0.0
         self._state = State(episode_id=str(uuid4()), step_count=0)
         self._done: bool = False
+
+        # Attach rubric for task grader discovery by validators
+        super().__init__(rubric=MedReconciliationRubric())
 
         # Load drug interaction DB
         interactions_data = _load_json(_INTERACTIONS_FILE)
