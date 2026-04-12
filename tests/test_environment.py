@@ -4,7 +4,7 @@ import pytest
 
 
 def test_environment_reset_easy():
-    from med_reconciliation.server.environment import MedReconciliationEnvironment
+    from server.environment import MedReconciliationEnvironment
     env = MedReconciliationEnvironment(task="easy")
     obs = env.reset()
     assert obs.task_difficulty == "easy"
@@ -16,7 +16,7 @@ def test_environment_reset_easy():
 
 
 def test_environment_reset_medium():
-    from med_reconciliation.server.environment import MedReconciliationEnvironment
+    from server.environment import MedReconciliationEnvironment
     env = MedReconciliationEnvironment(task="medium")
     obs = env.reset()
     assert obs.task_difficulty == "medium"
@@ -24,7 +24,7 @@ def test_environment_reset_medium():
 
 
 def test_environment_reset_hard():
-    from med_reconciliation.server.environment import MedReconciliationEnvironment
+    from server.environment import MedReconciliationEnvironment
     env = MedReconciliationEnvironment(task="hard")
     obs = env.reset()
     assert obs.task_difficulty == "hard"
@@ -32,8 +32,8 @@ def test_environment_reset_hard():
 
 
 def test_correct_flag_gives_positive_reward():
-    from med_reconciliation.server.environment import MedReconciliationEnvironment
-    from med_reconciliation.models import MedReconciliationAction
+    from server.environment import MedReconciliationEnvironment
+    from models import MedReconciliationAction
     env = MedReconciliationEnvironment(task="easy")
     env.reset()
     obs = env.step(MedReconciliationAction(
@@ -47,8 +47,8 @@ def test_correct_flag_gives_positive_reward():
 
 
 def test_false_positive_gives_negative_reward():
-    from med_reconciliation.server.environment import MedReconciliationEnvironment
-    from med_reconciliation.models import MedReconciliationAction
+    from server.environment import MedReconciliationEnvironment
+    from models import MedReconciliationAction
     env = MedReconciliationEnvironment(task="easy")
     env.reset()
     obs = env.step(MedReconciliationAction(
@@ -62,8 +62,8 @@ def test_false_positive_gives_negative_reward():
 
 
 def test_submit_ends_episode():
-    from med_reconciliation.server.environment import MedReconciliationEnvironment
-    from med_reconciliation.models import MedReconciliationAction
+    from server.environment import MedReconciliationEnvironment
+    from models import MedReconciliationAction
     env = MedReconciliationEnvironment(task="easy")
     env.reset()
     obs = env.step(MedReconciliationAction(action_type="submit"))
@@ -71,13 +71,13 @@ def test_submit_ends_episode():
 
 
 def test_invalid_task_raises():
-    from med_reconciliation.server.environment import MedReconciliationEnvironment
+    from server.environment import MedReconciliationEnvironment
     with pytest.raises(ValueError):
         MedReconciliationEnvironment(task="impossible")
 
 
 def test_state_returns_episode_id():
-    from med_reconciliation.server.environment import MedReconciliationEnvironment
+    from server.environment import MedReconciliationEnvironment
     env = MedReconciliationEnvironment(task="easy")
     env.reset()
     state = env.state
@@ -86,8 +86,8 @@ def test_state_returns_episode_id():
 
 
 def test_reset_clears_previous_state():
-    from med_reconciliation.server.environment import MedReconciliationEnvironment
-    from med_reconciliation.models import MedReconciliationAction
+    from server.environment import MedReconciliationEnvironment
+    from models import MedReconciliationAction
     env = MedReconciliationEnvironment(task="easy")
     env.reset()
     env.step(MedReconciliationAction(

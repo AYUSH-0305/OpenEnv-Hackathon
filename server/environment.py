@@ -20,10 +20,10 @@ from openenv.core.env_server.interfaces import Environment
 from openenv.core.env_server.types import State
 
 try:
-    from ..graders.graders import grade_episode
+    from ..med_reconciliation.graders.graders import grade_episode
     from ..models import MedReconciliationAction, MedReconciliationObservation
 except ImportError:
-    from graders.graders import grade_episode
+    from med_reconciliation.graders.graders import grade_episode
     from models import MedReconciliationAction, MedReconciliationObservation
 
 # Paths to data files

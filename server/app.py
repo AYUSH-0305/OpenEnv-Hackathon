@@ -86,6 +86,15 @@ def get_tasks():
                 "max_score": 1.0,
                 "min_score": 0.0,
             },
+            {
+                "id": "control",
+                "name": "Control — No Issues",
+                "description": "Control task with no medication errors to detect false positives.",
+                "difficulty": "control",
+                "has_grader": True,
+                "max_score": 1.0,
+                "min_score": 0.0,
+            },
         ]
     }
 
